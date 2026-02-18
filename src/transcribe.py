@@ -2,7 +2,7 @@ import os
 import whisper
 import torch
 import structlog
-from typing import Optional
+from typing import Optional, Any, Dict
 
 logger = structlog.get_logger()
 
@@ -17,17 +17,17 @@ def get_model(model_name: str):
         _MODELS[model_name] = whisper.load_model(model_name, device=device)
     return _MODELS[model_name]
 
-def transcribe_with_whisper(file_path: str, language: str = "auto", format: str = "auto") -> str:
+def transcribe_with_whisper(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
     Transcribes a media file using Whisper.
     
     Args:
         file_path: Path to the media (audio or video) file.
         language: Language code or "auto" for detection.
-        format: Hint about the format ("audio", "video", or "auto").
+        task: Whisper task type ("transcribe" or "translate").
         
     Returns:
-        The transcribed text.
+        The full Whisper result dictionary.
     """
     try:
         model_name = os.getenv("WHISPER_MODEL", "base")
@@ -37,10 +37,10 @@ def transcribe_with_whisper(file_path: str, language: str = "auto", format: str 
         # It also handles auto-detection if language is None.
         lang = None if language == "auto" else language
         
-        logger.info("Starting transcription", file=file_path, language=language)
-        result = model.transcribe(file_path, language=lang)
+        logger.info("Starting Whisper task", file=file_path, language=language, task=task, model=model_name)
+        result = model.transcribe(file_path, language=lang, task=task)
         
-        return result["text"].strip()
+        return result
     except Exception as e:
-        logger.error("Transcription failed", file=file_path, error=str(e))
+        logger.error("Whisper task failed", file=file_path, task=task, error=str(e))
         raise
