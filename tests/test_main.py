@@ -64,6 +64,8 @@ def test_transcribe_success(mock_open, mock_delay, client, db_session):
     task = db_session.query(Transcription).filter(Transcription.id == data["task_id"]).first()
     assert task is not None
     assert task.status == "queued"
+    assert task.filename == "test.mp3"
+    assert task.language == "en"
     
     mock_delay.assert_called_once()
     # Check if we wrote to the file
