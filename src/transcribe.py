@@ -1,35 +1,46 @@
+import os
 import whisper
-import moviepy.editor as mp
-from langdetect import detect
-from pydub import AudioSegment
 import torch
 import structlog
+from typing import Optional
 
 logger = structlog.get_logger()
 
-def transcribe_with_whisper(file_path: str, language: str, format: str) -> str:
-    model_name = os.getenv("WHISPER_MODEL", "base")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = whisper.load_model(model_name, device=device)
-    logger.info("Loaded Whisper model", model=model_name, device=device)
+# Global model cache
+_MODELS = {}
+
+def get_model(model_name: str):
+    """Retrieves or loads a Whisper model."""
+    if model_name not in _MODELS:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info("Loading Whisper model", model=model_name, device=device)
+        _MODELS[model_name] = whisper.load_model(model_name, device=device)
+    return _MODELS[model_name]
+
+def transcribe_with_whisper(file_path: str, language: str = "auto", format: str = "auto") -> str:
+    """
+    Transcribes a media file using Whisper.
     
-    if format == "video" or (format == "auto" and file_path.lower().endswith((".mp4", ".avi", ".mov"))):
-        video = mp.VideoFileClip(file_path)
-        audio_path = file_path + ".wav"
-        video.audio.write_audiofile(audio_path)
-        file_path = audio_path
-    
-    if language == "auto":
-        audio = AudioSegment.from_file(file_path)
-        sample_path = "/tmp/sample.wav"
-        audio[:10000].export(sample_path, format="wav")
-        with open(sample_path, "rb") as f:
-            lang = detect(f.read())
-        os.remove(sample_path)
-    else:
-        lang = language
-    
-    result = model.transcribe(file_path, language=lang)
-    if file_path.endswith(".wav") and file_path != audio_path:  # Cleanup extracted audio
-        os.remove(file_path)
-    return result["text"]
+    Args:
+        file_path: Path to the media (audio or video) file.
+        language: Language code or "auto" for detection.
+        format: Hint about the format ("audio", "video", or "auto").
+        
+    Returns:
+        The transcribed text.
+    """
+    try:
+        model_name = os.getenv("WHISPER_MODEL", "base")
+        model = get_model(model_name)
+        
+        # Whisper handles both audio and video files directly using ffmpeg.
+        # It also handles auto-detection if language is None.
+        lang = None if language == "auto" else language
+        
+        logger.info("Starting transcription", file=file_path, language=language)
+        result = model.transcribe(file_path, language=lang)
+        
+        return result["text"].strip()
+    except Exception as e:
+        logger.error("Transcription failed", file=file_path, error=str(e))
+        raise
