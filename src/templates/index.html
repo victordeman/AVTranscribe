@@ -1,31 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>AVTranscribe</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AVTranscribe - Audio/Video Transcription</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: inline-flex;
+        }
+        .htmx-request.htmx-indicator {
+            display: inline-flex;
+        }
+    </style>
 </head>
-<body>
-    <h1>Upload Media for Transcription</h1>
-    <form id="upload-form" action="/transcribe" method="post" enctype="multipart/form-data">
-        <label for="file">File:</label>
-        <input type="file" name="file" required><br>
-        <label for="language">Language:</label>
-        <select name="language">
-            <option value="auto">Auto</option>
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <!-- Add more -->
-        </select><br>
-        <label for="format">Format:</label>
-        <select name="format">
-            <option value="auto">Auto</option>
-            <option value="audio">Audio</option>
-            <option value="video">Video</option>
-        </select><br>
-        <button type="submit">Transcribe</button>
-    </form>
-    <div id="status" hx-post="/transcribe" hx-trigger="submit from #upload-form" hx-swap="innerHTML">
-        <!-- Status will appear here -->
+<body class="bg-gray-100 min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-12">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-indigo-700 mb-2">AVTranscribe</h1>
+            <p class="text-gray-600 text-lg">Fast, accurate, and open-source media transcription</p>
+        </header>
+
+        <main class="max-w-xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-8 border border-gray-200">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6 border-b border-gray-100 pb-2">Upload Media</h2>
+
+            <form id="upload-form"
+                  hx-post="/transcribe"
+                  hx-target="#status-container"
+                  hx-swap="innerHTML"
+                  hx-indicator="#loading"
+                  enctype="multipart/form-data"
+                  class="space-y-6">
+
+                <div>
+                    <label for="file" class="block text-sm font-medium text-gray-700 mb-1">Select File (Audio or Video)</label>
+                    <input type="file" name="file" id="file" required
+                           class="block w-full text-sm text-gray-500
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-md file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-indigo-50 file:text-indigo-700
+                                  hover:file:bg-indigo-100 cursor-pointer transition-all">
+                    <p class="mt-1 text-xs text-gray-400">Supported formats: mp3, wav, mp4, mkv, etc. Max 100MB.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="language" class="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                        <select name="language" id="language"
+                                class="block w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2.5 bg-gray-50">
+                            <option value="auto">Auto-detect</option>
+                            <option value="en">English</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="nl">Dutch</option>
+                            <option value="ru">Russian</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ja">Japanese</option>
+                            <option value="ko">Korean</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="format" class="block text-sm font-medium text-gray-700 mb-1">Media Format</label>
+                        <select name="format" id="format"
+                                class="block w-full mt-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2.5 bg-gray-50">
+                            <option value="auto">Auto</option>
+                            <option value="audio">Audio Only</option>
+                            <option value="video">Video</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200">
+                        Transcribe Now
+                    </button>
+                </div>
+            </form>
+
+            <div id="loading" class="htmx-indicator w-full justify-center mt-6">
+                <div class="inline-flex items-center px-4 py-2 font-semibold leading-6 text-sm shadow rounded-md text-white bg-indigo-500">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading & processing...
+                </div>
+            </div>
+
+            <div id="status-container" class="mt-8 transition-all duration-300">
+                <!-- Status snippets will be loaded here via HTMX -->
+            </div>
+        </main>
+
+        <footer class="mt-16 text-center text-gray-400 text-sm">
+            <p>&copy; 2024 AVTranscribe. Powered by FastAPI, Celery, and Whisper.</p>
+        </footer>
     </div>
 </body>
 </html>

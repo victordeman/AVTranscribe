@@ -1,12 +1,11 @@
-from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, Header
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
+from typing import Optional
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from src.models import Base, Transcription, SessionLocal
+from src.models import Base, Transcription, SessionLocal, ENGINE
 from src.tasks import transcribe_task
 from src.utils import validate_file
 import uuid
@@ -24,7 +23,6 @@ app.state.limiter = limiter
 app.add_exception_handler(HTTPException, _rate_limit_exceeded_handler)
 
 # DB Setup
-ENGINE = create_engine(os.getenv("DB_URL", "sqlite:///transcriptions.db"))
 Base.metadata.create_all(bind=ENGINE)
 
 def get_db():
@@ -45,7 +43,8 @@ async def transcribe(
     file: UploadFile,
     language: str = Form("auto"),
     format: str = Form("auto"),
-    db = Depends(get_db)
+    db = Depends(get_db),
+    hx_request: Optional[str] = Header(None)
 ):
     if not validate_file(file):
         logger.error("Invalid file upload", filename=file.filename)
@@ -60,13 +59,32 @@ async def transcribe(
     db.commit()
     
     transcribe_task.delay(temp_path, language, format, task_id)
+
+    if hx_request:
+        return templates.TemplateResponse("status_partial.html", {
+            "request": request,
+            "task_id": task_id,
+            "status": "queued"
+        })
     return {"task_id": task_id, "status": "queued"}
 
 @app.get("/status/{task_id}")
-async def get_status(task_id: str, db = Depends(get_db)):
+async def get_status(
+    request: Request,
+    task_id: str,
+    db = Depends(get_db),
+    hx_request: Optional[str] = Header(None)
+):
     trans = db.query(Transcription).filter(Transcription.id == task_id).first()
     if not trans:
         raise HTTPException(404, "Task not found")
+
+    if hx_request:
+        return templates.TemplateResponse("status_partial.html", {
+            "request": request,
+            "task_id": task_id,
+            "status": trans.status
+        })
     return {"status": trans.status}
 
 @app.get("/download/{task_id}/{fmt}")
