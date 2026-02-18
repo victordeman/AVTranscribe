@@ -64,7 +64,12 @@ async def transcribe(
         raise HTTPException(status_code=500, detail="Failed to save uploaded file")
     
     task_id = str(uuid.uuid4())
-    trans = Transcription(id=task_id, status="queued")
+    trans = Transcription(
+        id=task_id,
+        status="queued",
+        filename=safe_filename,
+        language=language
+    )
     db.add(trans)
     db.commit()
     
