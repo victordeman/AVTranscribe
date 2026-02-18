@@ -11,22 +11,32 @@ app = Celery("avtranscribe", broker=os.getenv("REDIS_URL", "redis://localhost:63
 @app.task
 def transcribe_task(file_path: str, language: str, format: str, task_id: str):
     db = SessionLocal()
-    trans = db.query(Transcription).filter(Transcription.id == task_id).first()
-    trans.status = "processing"
-    db.commit()
-    
     try:
-        text = transcribe_with_whisper(file_path, language, format)
-        csv_path = clean_to_csv(text, task_id)
-        trans.text = text
-        trans.csv_path = csv_path
-        trans.status = "done"
-        logger.info("Transcription complete", task_id=task_id)
-    except Exception as e:
-        trans.status = f"error: {str(e)}"
-        logger.error("Transcription failed", exc_info=e)
-    finally:
+        trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+        if not trans:
+            logger.error("Task not found in database", task_id=task_id)
+            return
+
+        trans.status = "processing"
         db.commit()
+
+        try:
+            text = transcribe_with_whisper(file_path, language, format)
+            csv_path = clean_to_csv(text, task_id)
+            trans.text = text
+            trans.csv_path = csv_path
+            trans.status = "done"
+            logger.info("Transcription complete", task_id=task_id)
+        except Exception as e:
+            db.rollback()
+            trans.status = f"error: {str(e)}"
+            logger.error("Transcription failed", task_id=task_id, error=str(e))
+        finally:
+            db.commit()
+    finally:
         db.close()
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                logger.warning("Failed to remove temporary file", path=file_path, error=str(e))
