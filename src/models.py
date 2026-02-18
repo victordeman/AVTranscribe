@@ -8,8 +8,8 @@ Base = declarative_base()
 
 # DB Setup
 DB_URL = os.getenv("DB_URL", "sqlite:///transcriptions.db")
-ENGINE = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=ENGINE)
+engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @contextmanager
 def session_scope():

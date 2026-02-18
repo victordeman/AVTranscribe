@@ -12,51 +12,51 @@ def clear_models_cache():
 def test_transcribe_with_whisper_success(mock_cuda, mock_load_model):
     # Setup mock model
     mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "Hello world"}
+    mock_model.transcribe.return_value = {"text": "Hello world", "segments": []}
     mock_load_model.return_value = mock_model
     
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3", language="en")
     
     # Assertions
-    assert result == "Hello world"
+    assert result["text"] == "Hello world"
     mock_load_model.assert_called_once_with("base", device="cpu")
-    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language="en")
+    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language="en", task="transcribe")
 
 @patch("whisper.load_model")
 @patch("torch.cuda.is_available", return_value=False)
 def test_transcribe_with_whisper_auto_language(mock_cuda, mock_load_model):
     # Setup mock model
     mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "Detected language text"}
+    mock_model.transcribe.return_value = {"text": "Detected language text", "segments": []}
     mock_load_model.return_value = mock_model
     
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3", language="auto")
     
     # Assertions
-    assert result == "Detected language text"
-    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language=None)
+    assert result["text"] == "Detected language text"
+    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language=None, task="transcribe")
 
 @patch("whisper.load_model")
 @patch("torch.cuda.is_available", return_value=True)
 def test_transcribe_with_whisper_cuda(mock_cuda, mock_load_model):
     # Setup mock model
     mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "GPU power"}
+    mock_model.transcribe.return_value = {"text": "GPU power", "segments": []}
     mock_load_model.return_value = mock_model
     
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3")
     
     # Assertions
-    assert result == "GPU power"
+    assert result["text"] == "GPU power"
     mock_load_model.assert_called_once_with("base", device="cuda")
 
 @patch("whisper.load_model")
 def test_transcribe_with_whisper_model_caching(mock_load_model):
     mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "cached"}
+    mock_model.transcribe.return_value = {"text": "cached", "segments": []}
     mock_load_model.return_value = mock_model
     
     # Call twice
