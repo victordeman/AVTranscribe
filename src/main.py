@@ -7,7 +7,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.models import Base, Transcription, SessionLocal, engine
 from src.tasks import transcribe_task
-from src.utils import validate_file
+from src.utils import validate_file, save_text
 import uuid
 import os
 import shutil
@@ -94,8 +94,7 @@ async def download(task_id: str, fmt: str, db = Depends(get_db)):
     if fmt == "text":
         file_path = f"/tmp/{task_id}.txt"
         if not os.path.exists(file_path):
-            with open(file_path, "w") as f:
-                f.write(trans.text or "")
+            file_path = save_text(trans.text or "", task_id)
         return FileResponse(file_path, filename="transcription.txt")
     elif fmt == "csv":
         if not trans.csv_path or not os.path.exists(trans.csv_path):
