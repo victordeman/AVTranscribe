@@ -22,6 +22,25 @@ AVTranscribe is a production-ready, open-source audio and video transcription sy
 - **Frontend**: Jinja2 + HTMX + Tailwind CSS (via CDN)
 - **Logging**: Structured logging with structlog
 
+## 📂 Project Structure
+
+```text
+.
+├── src/
+│   ├── templates/          # HTML templates (Jinja2 + HTMX)
+│   ├── main.py             # FastAPI application and API routes
+│   ├── models.py           # SQLAlchemy database models
+│   ├── tasks.py            # Celery task definitions
+│   ├── transcribe.py       # Whisper transcription logic
+│   └── utils.py            # Helper functions (validation, ETL)
+├── tests/                  # Pytest suite
+├── static/                 # Static files (CSS, JS)
+├── Dockerfile              # Docker configuration for web/worker
+├── docker-compose.yml      # Multi-container orchestration
+├── requirements.txt        # Python dependencies
+└── README.md               # Project documentation
+```
+
 ## 📋 Prerequisites
 
 - **Python**: 3.12 or higher
