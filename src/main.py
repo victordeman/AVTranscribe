@@ -4,9 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from src.models import Base, Transcription, SessionLocal
+from src.models import Base, Transcription, SessionLocal, ENGINE
 from src.tasks import transcribe_task
 from src.utils import validate_file
 import uuid
@@ -23,8 +21,7 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(HTTPException, _rate_limit_exceeded_handler)
 
-# DB Setup
-ENGINE = create_engine(os.getenv("DB_URL", "sqlite:///transcriptions.db"))
+# DB Initialization
 Base.metadata.create_all(bind=ENGINE)
 
 def get_db():

@@ -4,11 +4,8 @@ jinja2==3.1.3
 celery==5.4.0
 redis==5.0.3
 sqlalchemy==2.0.27
-pydub==0.25.1
 pandas==2.2.1
-langdetect==1.0.9
 pyyaml==6.0.1
-moviepy==1.0.3
 openai-whisper==20231117  # Local Whisper; consider faster-whisper for optimization
 slowapi==0.1.9
 python-multipart==0.0.9
