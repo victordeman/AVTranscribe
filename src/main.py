@@ -3,6 +3,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from src.models import Base, Transcription, SessionLocal, ENGINE
 from src.tasks import transcribe_task
@@ -19,7 +20,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_exception_handler(HTTPException, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # DB Initialization
 Base.metadata.create_all(bind=ENGINE)
@@ -33,7 +34,7 @@ def get_db():
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 @app.post("/transcribe")
 @limiter.limit(os.getenv("RATE_LIMIT", "10/minute"))
