@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>AVTranscribe</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <h1>Upload Media for Transcription</h1>
+    <form id="upload-form" action="/transcribe" method="post" enctype="multipart/form-data">
+        <label for="file">File:</label>
+        <input type="file" name="file" required><br>
+        <label for="language">Language:</label>
+        <select name="language">
+            <option value="auto">Auto</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <!-- Add more -->
+        </select><br>
+        <label for="format">Format:</label>
+        <select name="format">
+            <option value="auto">Auto</option>
+            <option value="audio">Audio</option>
+            <option value="video">Video</option>
+        </select><br>
+        <button type="submit">Transcribe</button>
+    </form>
+    <div id="status" hx-post="/transcribe" hx-trigger="submit from #upload-form" hx-swap="innerHTML">
+        <!-- Status will appear here -->
+    </div>
+</body>
+</html>
