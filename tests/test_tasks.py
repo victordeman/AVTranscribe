@@ -37,6 +37,7 @@ def test_transcribe_task_success(
     assert mock_trans.status == "done"
     assert mock_trans.text == "Transcribed text"
     assert mock_trans.csv_path == "/tmp/test.csv"
+    assert mock_trans.progress == 1
     mock_remove.assert_called_once_with("dummy.mp3")
     mock_transcribe.assert_called_once_with("dummy.mp3", language="en")
 
@@ -106,5 +107,30 @@ def test_transcribe_task_final_failure(
     with pytest.raises(Exception, match="Final error"):
         transcribe_task.__wrapped__.__func__(task_self, "dummy.mp3", "en", "auto", "task-123")
     
-    assert "failed after 3 retries" in mock_trans.status
+    assert mock_trans.status == "failed"
+    assert "Failed after 3 retries" in mock_trans.error_message
     mock_remove.assert_called_once_with("dummy.mp3")
+
+@patch("os.listdir")
+@patch("os.path.getmtime")
+@patch("os.remove")
+@patch("time.time")
+def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
+    from src.tasks import cleanup_temp_files
+    # Setup
+    mock_time.return_value = 100000
+    mock_listdir.return_value = ["old.txt", "new.txt", "other.log"]
+    
+    def getmtime_side_effect(path):
+        if "old.txt" in path:
+            return 100000 - (25 * 3600)
+        return 100000 - (1 * 3600)
+    
+    mock_mtime.side_effect = getmtime_side_effect
+    
+    # Execute
+    cleanup_temp_files()
+    
+    # Assertions
+    mock_remove.assert_called_once()
+    assert "old.txt" in mock_remove.call_args[0][0]
