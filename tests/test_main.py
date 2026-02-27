@@ -57,11 +57,10 @@ def test_transcribe_success(mock_open, mock_delay, client, db_session):
     response = client.post("/transcribe", files=files, data={"language": "en", "format": "text"})
     
     assert response.status_code == 200
-    data = response.json()
-    assert "task_id" in data
-    assert data["status"] == "queued"
+    assert "Transcription Status" in response.text
+    assert "queued" in response.text
     
-    task = db_session.query(Transcription).filter(Transcription.id == data["task_id"]).first()
+    task = db_session.query(Transcription).first()
     assert task is not None
     assert task.status == "queued"
     
@@ -77,13 +76,14 @@ def test_transcribe_invalid_file(client):
 
 def test_get_status_success(client, db_session):
     task_id = "test-task-id"
-    trans = Transcription(id=task_id, status="processing")
+    trans = Transcription(id=task_id, status="processing", progress=5)
     db_session.add(trans)
     db_session.commit()
     
     response = client.get(f"/status/{task_id}")
     assert response.status_code == 200
-    assert response.json()["status"] == "processing"
+    assert "processing" in response.text
+    assert "5 segments" in response.text
 
 def test_get_status_not_found(client):
     response = client.get("/status/non-existent-id")

@@ -1,10 +1,11 @@
-from sqlalchemy import Column, String, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import String, create_engine, DateTime
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 import os
 from contextlib import contextmanager
+from datetime import datetime, UTC
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 # DB Setup
 DB_URL = os.getenv("DB_URL", "sqlite:///transcriptions.db")
@@ -26,7 +27,13 @@ def session_scope():
 
 class Transcription(Base):
     __tablename__ = "transcriptions"
-    id = Column(String, primary_key=True, index=True)
-    status = Column(String, default="queued")
-    text = Column(String)
-    csv_path = Column(String)
+    id: Mapped[str] = mapped_column(String, primary_key=True, index=True)
+    status: Mapped[str] = mapped_column(String, default="queued")
+    text: Mapped[str | None] = mapped_column(String, nullable=True)
+    csv_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    filename: Mapped[str | None] = mapped_column(String, nullable=True)
+    language: Mapped[str | None] = mapped_column(String, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+    progress: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
