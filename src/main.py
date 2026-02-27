@@ -64,19 +64,39 @@ async def transcribe(
         raise HTTPException(status_code=500, detail="Failed to save uploaded file")
     
     task_id = str(uuid.uuid4())
-    trans = Transcription(id=task_id, status="queued")
+    trans = Transcription(
+        id=task_id,
+        status="queued",
+        filename=safe_filename,
+        language=language
+    )
     db.add(trans)
     db.commit()
     
     transcribe_task.delay(temp_path, language, format, task_id)
-    return {"task_id": task_id, "status": "queued"}
 
-@app.get("/status/{task_id}")
-async def get_status(task_id: str, db = Depends(get_db)):
+    return templates.TemplateResponse(
+        request,
+        "status_partial.html",
+        {"task_id": task_id, "status": "queued", "progress": 0}
+    )
+
+@app.get("/status/{task_id}", response_class=HTMLResponse)
+async def get_status(request: Request, task_id: str, db = Depends(get_db)):
     trans = db.query(Transcription).filter(Transcription.id == task_id).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
-    return {"status": trans.status}
+
+    return templates.TemplateResponse(
+        request,
+        "status_partial.html",
+        {
+            "task_id": task_id,
+            "status": trans.status,
+            "progress": trans.progress,
+            "error_message": trans.error_message
+        }
+    )
 
 @app.get("/download/{task_id}/{fmt}")
 async def download(task_id: str, fmt: str, db = Depends(get_db)):
