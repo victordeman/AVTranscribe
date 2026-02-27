@@ -1,25 +1,68 @@
-from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, status
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.models import Base, Transcription, SessionLocal, engine
 from src.tasks import transcribe_task
 from src.utils import validate_file, save_text
+from prometheus_fastapi_instrumentator import Instrumentator
 import uuid
 import os
 import shutil
 import structlog
+import secrets
 
 logger = structlog.get_logger()
 
 app = FastAPI()
+
+# Prometheus
+Instrumentator().instrument(app).expose(app)
+
 templates = Jinja2Templates(directory="src/templates")
 
 # DB Setup
 Base.metadata.create_all(bind=engine)
+
+# Authentication
+security = HTTPBasic(auto_error=False)
+
+def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    correct_username = os.getenv("AUTH_USERNAME")
+    correct_password = os.getenv("AUTH_PASSWORD")
+
+    if not correct_username or not correct_password:
+        return None # Auth disabled
+
+    is_correct_username = secrets.compare_digest(credentials.username, correct_username)
+    is_correct_password = secrets.compare_digest(credentials.password, correct_password)
+
+    if not (is_correct_username and is_correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
+
+def optional_auth(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = os.getenv("AUTH_USERNAME")
+    correct_password = os.getenv("AUTH_PASSWORD")
+
+    if not correct_username or not correct_password:
+        return None
+
+    return get_current_user(credentials)
 
 def get_db():
     db = SessionLocal()
@@ -38,7 +81,7 @@ if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, user = Depends(optional_auth)):
     return templates.TemplateResponse(request, "index.html")
 
 @app.post("/transcribe")
@@ -48,7 +91,8 @@ async def transcribe(
     file: UploadFile,
     language: str = Form("auto"),
     format: str = Form("auto"),
-    db = Depends(get_db)
+    db = Depends(get_db),
+    user = Depends(optional_auth)
 ):
     if not validate_file(file):
         logger.error("Invalid file upload", filename=file.filename or "unknown")
@@ -82,7 +126,7 @@ async def transcribe(
     )
 
 @app.get("/status/{task_id}", response_class=HTMLResponse)
-async def get_status(request: Request, task_id: str, db = Depends(get_db)):
+async def get_status(request: Request, task_id: str, db = Depends(get_db), user = Depends(optional_auth)):
     trans = db.query(Transcription).filter(Transcription.id == task_id).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -99,7 +143,7 @@ async def get_status(request: Request, task_id: str, db = Depends(get_db)):
     )
 
 @app.get("/download/{task_id}/{fmt}")
-async def download(task_id: str, fmt: str, db = Depends(get_db)):
+async def download(task_id: str, fmt: str, db = Depends(get_db), user = Depends(optional_auth)):
     trans = db.query(Transcription).filter(Transcription.id == task_id).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
