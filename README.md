@@ -11,7 +11,18 @@ AVTranscribe is a production-ready, open-source audio and video transcription sy
 - **Multiple Export Formats**: Download transcriptions as plain text or CSV files.
 - **Rate Limiting**: Integrated protection against abuse using SlowAPI.
 - **Dockerized**: Easy deployment with Docker Compose.
+- **Monitoring**: Built-in Prometheus metrics and Grafana dashboard support.
+- **GPU Support**: Optional GPU-enabled Docker image for faster processing.
+- **Secure**: Optional Basic Authentication for public deployments.
 - **Modern UI**: Simple and responsive interface powered by Jinja2 and HTMX.
+
+## 📸 Screenshots
+
+![Home Page](https://via.placeholder.com/800x450?text=AVTranscribe+Home+Page)
+*The main upload interface.*
+
+![Status Tracking](https://via.placeholder.com/800x450?text=AVTranscribe+Status+Tracking)
+*Real-time task progress monitoring.*
 
 ## 🛠 Tech Stack
 
@@ -141,3 +152,44 @@ pytest
 - `DB_URL`: Connection string for the database (default: `sqlite:///transcriptions.db`).
 - `WHISPER_MODEL`: Whisper model size (options: `tiny`, `base`, `small`, `medium`, `large`).
 - `RATE_LIMIT`: API rate limit (default: `10/minute`).
+- `AUTH_USERNAME`: Username for Basic Auth (leave empty to disable).
+- `AUTH_PASSWORD`: Password for Basic Auth (leave empty to disable).
+
+## 🚀 Deployment Guide (VPS - DigitalOcean/Linode)
+
+For a production deployment on a VPS, follow these steps:
+
+### 1. Provision a Server
+- Choose a VPS with at least 4GB RAM (Whisper models can be memory-intensive).
+- For faster processing, consider a GPU-enabled instance.
+
+### 2. Install Docker & Docker Compose
+Follow the official guides for your distribution (e.g., [Ubuntu](https://docs.docker.com/engine/install/ubuntu/)).
+
+### 3. Clone and Configure
+```bash
+git clone https://github.com/victordeman/AVTranscribe.git
+cd AVTranscribe
+cp .env.example .env
+```
+Update `.env` with secure passwords and your domain name.
+
+### 4. Deploy
+**Standard Deployment:**
+```bash
+docker-compose up -d
+```
+
+**GPU Deployment:**
+Ensure you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed.
+```bash
+docker build -f Dockerfile.gpu -t avtranscribe:gpu .
+# Update docker-compose.yml to use the 'avtranscribe:gpu' image and add 'deploy: resources: reservations: devices: - driver: nvidia ...'
+```
+
+### 5. Access Monitoring
+- **Prometheus**: `http://your-vps-ip:9090`
+- **Grafana**: `http://your-vps-ip:3000` (Default login: `admin/admin`)
+
+## 🔗 Live Demo
+[Coming Soon!](#)
