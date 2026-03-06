@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "src/main.py": {
+      "runtime": "vercel-python@0.1.0",
+      "excludeFiles": "tests/**",
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "src/main.py"
+    }
+  ]
+}
