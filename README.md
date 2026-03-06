@@ -65,7 +65,10 @@ AVTranscribe is a production-ready, open-source audio and video transcription sy
    Note: On Python 3.12+, `setuptools` and `wheel` are required to build some dependencies.
    ```bash
    pip install setuptools wheel
+   # For standard installation (includes OpenAI API support):
    pip install -r requirements.txt
+   # For local transcription (includes OpenAI Whisper & PyTorch):
+   pip install -r requirements-local.txt
    ```
 
 4. **Environment Configuration**:
@@ -107,6 +110,27 @@ docker-compose up --build
 ```
 
 This starts the web server, Celery worker, Redis, and a PostgreSQL database.
+
+## 🚀 Deployment to Vercel
+
+AVTranscribe can be deployed to Vercel as a serverless application. Since Vercel does not support persistent background workers (Celery), the application automatically switches to **Serverless Mode** using FastAPI's `BackgroundTasks` when deployed to Vercel.
+
+### Prerequisites for Vercel
+
+1.  **OpenAI API Key**: Required for transcription in serverless mode, as local Whisper models are too large for Vercel's bundle limits.
+2.  **External Database**: Use a hosted PostgreSQL database (e.g., [Supabase](https://supabase.com/) or [Neon](https://neon.tech/)).
+
+### Steps to Deploy
+
+1.  **Push your code** to a GitHub repository.
+2.  **Connect the repository** to Vercel.
+3.  **Configure Environment Variables** in Vercel:
+    *   `OPENAI_API_KEY`: Your OpenAI API key.
+    *   `DB_URL`: Your hosted PostgreSQL connection string (e.g., `postgresql://user:pass@host/db`).
+    *   `RATE_LIMIT`: (Optional) e.g., `5/minute`.
+4.  **Deploy!** Vercel will automatically use `vercel.json` to configure the runtime.
+
+*Note: In Serverless Mode, transcriptions are limited by Vercel's function timeout (up to 300s on Hobby plan, 800s on Pro).*
 
 ## 🔌 API Endpoints
 

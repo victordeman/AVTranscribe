@@ -119,10 +119,13 @@ def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
     from src.tasks import cleanup_temp_files
     # Setup
     mock_time.return_value = 100000
-    mock_listdir.return_value = ["old.txt", "new.txt", "other.log"]
+    # Files must match pattern {uuid}_{filename} or {uuid}.txt / {uuid}.csv
+    # A UUID is 36 chars.
+    uuid_prefix = "a" * 36
+    mock_listdir.return_value = [f"{uuid_prefix}_old.mp3", f"{uuid_prefix}_new.mp3", "other.log"]
     
     def getmtime_side_effect(path):
-        if "old.txt" in path:
+        if "old.mp3" in path:
             return 100000 - (25 * 3600)
         return 100000 - (1 * 3600)
     
@@ -133,4 +136,4 @@ def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
     
     # Assertions
     mock_remove.assert_called_once()
-    assert "old.txt" in mock_remove.call_args[0][0]
+    assert "old.mp3" in mock_remove.call_args[0][0]

@@ -4,6 +4,6 @@ RUN apt-get update && apt-get install -y ffmpeg libsndfile1 && rm -rf /var/lib/a
 
 WORKDIR /app
 COPY . /app
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-local.txt
 
 CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--bind", "0.0.0.0:8000"]

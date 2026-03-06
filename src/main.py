@@ -1,13 +1,13 @@
-from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from src.models import Base, Transcription, SessionLocal, engine
-from src.tasks import transcribe_task
-from src.utils import validate_file, save_text
+from src.models import Base, Transcription, SessionLocal, engine, session_scope
+from src.transcribe import transcribe_with_whisper
+from src.utils import validate_file, save_text, clean_to_csv
 import uuid
 import os
 import shutil
@@ -15,8 +15,13 @@ import structlog
 
 logger = structlog.get_logger()
 
+# Use absolute paths for Vercel deployment
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
+
 app = FastAPI()
-templates = Jinja2Templates(directory="src/templates")
+templates = Jinja2Templates(directory=TEMPLATE_DIR)
 
 # DB Setup
 Base.metadata.create_all(bind=engine)
@@ -34,8 +39,43 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Static files
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+def run_transcription_sync(file_path: str, language: str, format: str, task_id: str):
+    """
+    Synchronous transcription helper for BackgroundTasks (used in serverless mode).
+    """
+    try:
+        with session_scope() as db:
+            trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+            if trans:
+                trans.status = "processing"
+
+        result = transcribe_with_whisper(file_path, language=language)
+        text = result.get("text", "").strip()
+        segments = result.get("segments", [])
+        csv_path = clean_to_csv(segments, task_id)
+
+        with session_scope() as db:
+            trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+            if trans:
+                trans.text = text
+                trans.csv_path = csv_path
+                trans.progress = len(segments)
+                trans.status = "done"
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        logger.error("Background transcription failed", task_id=task_id, error=str(e))
+        with session_scope() as db:
+            trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+            if trans:
+                trans.status = "failed"
+                trans.error_message = str(e)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -45,6 +85,7 @@ async def home(request: Request):
 @limiter.limit(os.getenv("RATE_LIMIT", "10/minute"))
 async def transcribe(
     request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile,
     language: str = Form("auto"),
     format: str = Form("auto"),
@@ -73,7 +114,14 @@ async def transcribe(
     db.add(trans)
     db.commit()
     
-    transcribe_task.delay(temp_path, language, format, task_id)
+    # Decide between Celery and BackgroundTasks
+    use_celery = os.getenv("REDIS_URL") is not None and os.getenv("VERCEL") is None
+    if use_celery:
+        from src.tasks import transcribe_task
+        transcribe_task.delay(temp_path, language, format, task_id)
+    else:
+        logger.info("Using BackgroundTasks (Serverless Mode)", task_id=task_id)
+        background_tasks.add_task(run_transcription_sync, temp_path, language, format, task_id)
     
     return templates.TemplateResponse(
         request, 

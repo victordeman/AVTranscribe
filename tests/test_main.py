@@ -45,12 +45,15 @@ def test_home(client):
     assert response.status_code == 200
     assert "Upload Media" in response.text
 
-@patch("src.main.transcribe_task.delay")
+@patch("src.main.transcribe_with_whisper")
 @patch("src.main.open", create=True)
-def test_transcribe_success(mock_open, mock_delay, client, db_session):
+def test_transcribe_success(mock_open, mock_transcribe, client, db_session):
     mock_file = MagicMock()
     mock_open.return_value.__enter__.return_value = mock_file
     
+    # Mock transcribe_with_whisper since we're in serverless mode in tests (no REDIS_URL)
+    mock_transcribe.return_value = {"text": "Hello world", "segments": []}
+
     file_content = b"fake audio content"
     files = {"file": ("test.mp3", file_content, "audio/mpeg")}
     
@@ -64,7 +67,6 @@ def test_transcribe_success(mock_open, mock_delay, client, db_session):
     assert task is not None
     assert task.status == "queued"
     
-    mock_delay.assert_called_once()
     # Check if we wrote to the file
     mock_file.write.assert_called_once_with(file_content)
 
