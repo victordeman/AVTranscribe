@@ -1,15 +1,13 @@
 {
   "functions": {
-    "src/main.py": {
-      "runtime": "vercel-python@0.1.0",
-      "excludeFiles": "tests/**",
+    "api/index.py": {
       "maxDuration": 300
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "src/main.py"
+      "destination": "api/index.py"
     }
   ]
 }
