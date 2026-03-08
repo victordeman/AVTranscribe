@@ -48,7 +48,9 @@ def transcribe_task(self, file_path: str, language: str, format: str, task_id: s
         logger.info("Starting transcription task", task_id=task_id, file=file_path)
         
         # Execute transcription with progress callback
-        on_segment = lambda: update_progress(task_id)
+        def on_segment():
+            update_progress(task_id)
+
         result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
         
         text = result.get("text", "").strip()

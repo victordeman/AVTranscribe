@@ -75,7 +75,9 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
                 trans.status = "processing"
                 trans.progress = 0
 
-        on_segment = lambda: update_progress_sync(task_id)
+        def on_segment():
+            update_progress_sync(task_id)
+
         result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
 
         text = result.get("text", "").strip()
