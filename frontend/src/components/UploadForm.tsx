@@ -48,7 +48,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
       });
 
       onUploadStart(response.data.task_id);
-    } catch (err: any) {
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error('Upload failed:', err);
       setError(err.response?.data?.detail || 'Failed to upload file. Please try again.');
     } finally {
