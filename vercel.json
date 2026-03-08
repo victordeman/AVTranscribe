@@ -1,7 +1,21 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
+    {
+      "source": "/transcribe",
+      "destination": "/backend/src/main.py"
+    },
+    {
+      "source": "/status/(.*)",
+      "destination": "/backend/src/main.py"
+    },
+    {
+      "source": "/download/(.*)",
+      "destination": "/backend/src/main.py"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

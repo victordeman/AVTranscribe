@@ -1,7 +1,8 @@
 from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -22,6 +23,15 @@ STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
 
 app = FastAPI()
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # DB Setup
 Base.metadata.create_all(bind=engine)
@@ -123,18 +133,29 @@ async def transcribe(
         logger.info("Using BackgroundTasks (Serverless Mode)", task_id=task_id)
         background_tasks.add_task(run_transcription_sync, temp_path, language, format, task_id)
     
+    if "application/json" in request.headers.get("Accept", ""):
+        return JSONResponse({"task_id": task_id, "status": "queued", "progress": 0})
+
     return templates.TemplateResponse(
         request, 
         "status_partial.html", 
         {"task_id": task_id, "status": "queued", "progress": 0}
     )
 
-@app.get("/status/{task_id}", response_class=HTMLResponse)
+@app.get("/status/{task_id}")
 async def get_status(request: Request, task_id: str, db = Depends(get_db)):
     trans = db.query(Transcription).filter(Transcription.id == task_id).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
     
+    if "application/json" in request.headers.get("Accept", ""):
+        return JSONResponse({
+            "task_id": task_id,
+            "status": trans.status,
+            "progress": trans.progress,
+            "error_message": trans.error_message
+        })
+
     return templates.TemplateResponse(
         request, 
         "status_partial.html", 
