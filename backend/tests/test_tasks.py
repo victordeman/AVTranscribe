@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 from src.tasks import transcribe_task
 from src.models import Transcription
 import os
@@ -39,7 +39,7 @@ def test_transcribe_task_success(
     assert mock_trans.csv_path == "/tmp/test.csv"
     assert mock_trans.progress == 1
     mock_remove.assert_called_once_with("dummy.mp3")
-    mock_transcribe.assert_called_once_with("dummy.mp3", language="en")
+    mock_transcribe.assert_called_once_with("dummy.mp3", language="en", on_segment=ANY)
 
 @patch("src.tasks.session_scope")
 @patch("src.tasks.transcribe_with_whisper")
@@ -137,3 +137,18 @@ def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
     # Assertions
     mock_remove.assert_called_once()
     assert "old.mp3" in mock_remove.call_args[0][0]
+
+@patch("src.tasks.session_scope")
+def test_update_progress(mock_scope, mock_db):
+    from src.tasks import update_progress
+    # Setup
+    mock_scope.return_value.__enter__.return_value = mock_db
+    mock_trans = MagicMock(spec=Transcription)
+    mock_trans.progress = 5
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_trans
+
+    # Execute
+    update_progress("task-123")
+
+    # Assert
+    assert mock_trans.progress == 6
