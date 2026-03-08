@@ -18,8 +18,6 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ taskId }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let interval: number;
-
     const fetchStatus = async () => {
       try {
         const response = await axios.get(`/status/${taskId}`, {
@@ -28,17 +26,23 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ taskId }) => {
         setTask(response.data);
 
         if (response.data.status === 'done' || response.data.status === 'failed') {
-          clearInterval(interval);
+          return true;
         }
       } catch (err) {
         console.error('Failed to fetch status:', err);
         setError('Failed to get transcription status.');
-        clearInterval(interval);
+        return true;
       }
+      return false;
     };
 
     fetchStatus();
-    interval = window.setInterval(fetchStatus, 3000);
+    const interval = window.setInterval(async () => {
+      const shouldStop = await fetchStatus();
+      if (shouldStop) {
+        clearInterval(interval);
+      }
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [taskId]);

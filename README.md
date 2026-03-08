@@ -26,18 +26,19 @@ AVTranscribe is a production-ready, open-source audio and video transcription sy
 
 ```text
 .
-├── src/
-│   ├── templates/          # HTML templates (Jinja2 + HTMX)
-│   ├── main.py             # FastAPI application and API routes
-│   ├── models.py           # SQLAlchemy database models
-│   ├── tasks.py            # Celery task definitions
-│   ├── transcribe.py       # Whisper transcription logic
-│   └── utils.py            # Helper functions (validation, ETL)
-├── tests/                  # Pytest suite
-├── static/                 # Static files (CSS, JS)
-├── Dockerfile              # Docker configuration for web/worker
+├── backend/
+│   ├── src/                # FastAPI application source
+│   │   ├── templates/      # HTML templates (Jinja2 + HTMX)
+│   │   └── ...             # main.py, models.py, tasks.py, etc.
+│   ├── tests/              # Pytest suite
+│   ├── static/             # Static files (CSS, JS)
+│   ├── Dockerfile          # Docker configuration for web/worker
+│   └── requirements.txt    # Python dependencies
+├── frontend/               # React (Vite + TS + Tailwind) application
+│   ├── src/                # Frontend source code
+│   └── ...
+├── vercel.json             # Vercel deployment configuration
 ├── docker-compose.yml      # Multi-container orchestration
-├── requirements.txt        # Python dependencies
 └── README.md               # Project documentation
 ```
 
@@ -87,15 +88,18 @@ You need to run both the FastAPI server and the Celery worker.
 
 ### 1. Start the FastAPI Server
 ```bash
+cd backend
 gunicorn -w 4 -k uvicorn.workers.UvicornWorker src.main:app --bind 0.0.0.0:8000
 ```
 Or for development:
 ```bash
+cd backend
 uvicorn src.main:app --reload
 ```
 
 ### 2. Start the Celery Worker
 ```bash
+cd backend
 celery -A src.tasks worker --loglevel=info
 ```
 
@@ -146,8 +150,8 @@ AVTranscribe can be deployed to Vercel as a serverless application. Since Vercel
 Run the test suite using `pytest`:
 
 ```bash
-export PYTHONPATH=$PYTHONPATH:$(pwd)
-pytest
+export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+pytest backend/tests/
 ```
 
 ## 🏗 Architecture Overview
