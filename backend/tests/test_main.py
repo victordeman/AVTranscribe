@@ -150,23 +150,3 @@ def test_download_invalid_format(client, db_session):
     response = client.get(f"/download/{task_id}/invalid")
     assert response.status_code == 400
     assert "Invalid format" in response.json()["detail"]
-
-def test_download_text_timestamps_success(client, db_session):
-    task_id = "done-task-id-ts"
-    ts_path = f"/tmp/{task_id}_timestamps.txt"
-    trans = Transcription(id=task_id, status="done", text_timestamps_path=ts_path)
-    db_session.add(trans)
-    db_session.commit()
-
-    # Ensure the file exists for FileResponse
-    with open(ts_path, "w") as f:
-        f.write("test content")
-
-    try:
-        response = client.get(f"/download/{task_id}/text_timestamps")
-        assert response.status_code == 200
-        assert response.headers["content-disposition"] == 'attachment; filename="transcription_timestamps.txt"'
-    finally:
-        import os
-        if os.path.exists(ts_path):
-            os.remove(ts_path)

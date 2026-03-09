@@ -207,8 +207,6 @@ async def download(task_id: str, fmt: str, db = Depends(get_db)):
         return FileResponse(trans.csv_path, filename="transcription.csv")
     elif fmt == "text_timestamps":
         if not trans.text_timestamps_path or not os.path.exists(trans.text_timestamps_path):
-            # Fallback generation if file missing
-            from src.transcribe import transcribe_with_whisper
             # Note: This is a heavy fallback, usually the file should exist.
             # However, for simplicity if it's missing we just return 404 for now
             # as re-transcribing here is not feasible without the original file.
