@@ -6,15 +6,15 @@
   "rewrites": [
     {
       "source": "/transcribe",
-      "destination": "/backend/src/main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/status/(.*)",
-      "destination": "/backend/src/main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/download/(.*)",
-      "destination": "/backend/src/main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",
