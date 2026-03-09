@@ -9,7 +9,15 @@ class Base(DeclarativeBase):
 
 # DB Setup
 DB_URL = os.getenv("DB_URL", "sqlite:///transcriptions.db")
-engine = create_engine(DB_URL, connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {})
+# Add sqlite-specific settings if needed, and ensure pool for in-memory
+engine_args = {}
+if "sqlite" in DB_URL:
+    engine_args["connect_args"] = {"check_same_thread": False}
+    if ":memory:" in DB_URL:
+         from sqlalchemy.pool import StaticPool
+         engine_args["poolclass"] = StaticPool
+
+engine = create_engine(DB_URL, **engine_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @contextmanager
