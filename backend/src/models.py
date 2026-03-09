@@ -31,6 +31,7 @@ class Transcription(Base):
     status: Mapped[str] = mapped_column(String, default="queued")
     text: Mapped[str | None] = mapped_column(String, nullable=True)
     csv_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    text_timestamps_path: Mapped[str | None] = mapped_column(String, nullable=True)
     filename: Mapped[str | None] = mapped_column(String, nullable=True)
     language: Mapped[str | None] = mapped_column(String, nullable=True)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)

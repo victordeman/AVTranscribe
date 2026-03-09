@@ -58,6 +58,20 @@ def patch_stdout():
 
 patch_stdout()
 
+def detect_language_fallback(text: str) -> str:
+    """
+    Fallback language detection using langdetect.
+    Defaults to 'en' if detection fails.
+    """
+    try:
+        from langdetect import detect
+        if not text or len(text.strip()) < 5:
+            return "en"
+        return detect(text)
+    except Exception as e:
+        logger.warning("langdetect failed, defaulting to 'en'", error=str(e))
+        return "en"
+
 def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
     Transcribes a media file using the OpenAI Whisper API.
@@ -85,7 +99,13 @@ def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str
                 response_format="verbose_json"
             )
 
-    return response.model_dump()
+    result = response.model_dump()
+
+    # Language detection fallback for OpenAI API
+    if language == "auto" and not result.get("language"):
+        result["language"] = detect_language_fallback(result.get("text", ""))
+
+    return result
 
 def transcribe_with_whisper(
     file_path: str,
@@ -132,6 +152,10 @@ def transcribe_with_whisper(
         else:
             result = model.transcribe(file_path, language=lang, task=task)
         
+        # Language detection fallback for local Whisper
+        if language == "auto" and (not result.get("language") or result.get("language") == "unknown"):
+            result["language"] = detect_language_fallback(result.get("text", ""))
+
         return result
     except ImportError:
         logger.error("Local Whisper not available. Please set OPENAI_API_KEY.")

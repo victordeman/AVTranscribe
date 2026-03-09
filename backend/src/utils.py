@@ -69,3 +69,32 @@ def save_text(text: str, task_id: str) -> str:
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(text or "")
     return txt_path
+
+def format_timestamp(seconds: float) -> str:
+    """
+    Formats seconds into [HH:MM:SS.mmm] format.
+    """
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds % 60
+    return f"[{hours:02d}:{minutes:02d}:{secs:06.3f}]"
+
+def save_timestamped_text(segments: list, task_id: str) -> str:
+    """
+    Saves transcription text with timestamps to a plain text file.
+
+    Args:
+        segments: List of segment dictionaries from Whisper result.
+        task_id: Unique task identifier for naming the file.
+
+    Returns:
+        Path to the generated timestamped text file.
+    """
+    txt_path = f"/tmp/{task_id}_timestamps.txt"
+    with open(txt_path, "w", encoding="utf-8") as f:
+        for seg in segments:
+            start = format_timestamp(seg.get("start", 0.0))
+            end = format_timestamp(seg.get("end", 0.0))
+            text = seg.get("text", "").strip()
+            f.write(f"{start} --> {end}  {text}\n")
+    return txt_path

@@ -11,4 +11,5 @@ openai==1.14.3
 structlog==24.1.0
 gunicorn==22.0.0
 pytest==8.1.1
+langdetect==1.0.9
 # Note: For local transcription, install 'openai-whisper' and 'torch' manually or use requirements-local.txt
