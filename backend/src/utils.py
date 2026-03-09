@@ -82,11 +82,11 @@ def format_timestamp(seconds: float) -> str:
 def save_timestamped_text(segments: list, task_id: str) -> str:
     """
     Saves transcription text with timestamps to a plain text file.
-
+    
     Args:
         segments: List of segment dictionaries from Whisper result.
         task_id: Unique task identifier for naming the file.
-
+        
     Returns:
         Path to the generated timestamped text file.
     """
