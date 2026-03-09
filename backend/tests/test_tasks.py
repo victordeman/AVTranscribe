@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, ANY
-from src.tasks import transcribe_task
-from src.models import Transcription
+from backend.src.tasks import transcribe_task
+from backend.src.models import Transcription
 import os
 
 @pytest.fixture
@@ -9,9 +9,9 @@ def mock_db():
     db = MagicMock()
     return db
 
-@patch("src.tasks.session_scope")
-@patch("src.tasks.transcribe_with_whisper")
-@patch("src.tasks.clean_to_csv")
+@patch("backend.src.tasks.session_scope")
+@patch("backend.src.tasks.transcribe_with_whisper")
+@patch("backend.src.tasks.clean_to_csv")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_transcribe_task_success(
@@ -41,8 +41,8 @@ def test_transcribe_task_success(
     mock_remove.assert_called_once_with("dummy.mp3")
     mock_transcribe.assert_called_once_with("dummy.mp3", language="en", on_segment=ANY)
 
-@patch("src.tasks.session_scope")
-@patch("src.tasks.transcribe_with_whisper")
+@patch("backend.src.tasks.session_scope")
+@patch("backend.src.tasks.transcribe_with_whisper")
 def test_transcribe_task_missing_record(mock_transcribe, mock_scope, mock_db):
     # Setup
     mock_scope.return_value.__enter__.return_value = mock_db
@@ -57,8 +57,8 @@ def test_transcribe_task_missing_record(mock_transcribe, mock_scope, mock_db):
     # Assertions
     mock_transcribe.assert_not_called()
 
-@patch("src.tasks.session_scope")
-@patch("src.tasks.transcribe_with_whisper")
+@patch("backend.src.tasks.session_scope")
+@patch("backend.src.tasks.transcribe_with_whisper")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_transcribe_task_failure_retry(
@@ -84,8 +84,8 @@ def test_transcribe_task_failure_retry(
     assert "retrying" in mock_trans.status
     mock_remove.assert_not_called()
 
-@patch("src.tasks.session_scope")
-@patch("src.tasks.transcribe_with_whisper")
+@patch("backend.src.tasks.session_scope")
+@patch("backend.src.tasks.transcribe_with_whisper")
 @patch("os.path.exists")
 @patch("os.remove")
 def test_transcribe_task_final_failure(
@@ -116,7 +116,7 @@ def test_transcribe_task_final_failure(
 @patch("os.remove")
 @patch("time.time")
 def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
-    from src.tasks import cleanup_temp_files
+    from backend.src.tasks import cleanup_temp_files
     # Setup
     mock_time.return_value = 100000
     # Files must match pattern {uuid}_{filename} or {uuid}.txt / {uuid}.csv
@@ -138,9 +138,9 @@ def test_cleanup_temp_files(mock_time, mock_remove, mock_mtime, mock_listdir):
     mock_remove.assert_called_once()
     assert "old.mp3" in mock_remove.call_args[0][0]
 
-@patch("src.tasks.session_scope")
+@patch("backend.src.tasks.session_scope")
 def test_update_progress(mock_scope, mock_db):
-    from src.tasks import update_progress
+    from backend.src.tasks import update_progress
     # Setup
     mock_scope.return_value.__enter__.return_value = mock_db
     mock_trans = MagicMock(spec=Transcription)
