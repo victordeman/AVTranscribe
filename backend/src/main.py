@@ -20,6 +20,7 @@ logger = structlog.get_logger()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(os.path.dirname(BASE_DIR), "static")
+FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), "frontend", "dist")
 
 app = FastAPI()
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
@@ -51,6 +52,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Static files
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve React assets if dist exists
+if os.path.exists(os.path.join(FRONTEND_DIST_DIR, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST_DIR, "assets")), name="assets")
 
 def update_progress_sync(task_id: str):
     """
@@ -110,6 +115,12 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
+    # Try to serve React app first if built
+    react_index = os.path.join(FRONTEND_DIST_DIR, "index.html")
+    if os.path.exists(react_index):
+        return FileResponse(react_index)
+    
+    # Fallback to HTMX version
     return templates.TemplateResponse(request, "index.html")
 
 @app.post("/transcribe")
