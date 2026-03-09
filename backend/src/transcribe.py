@@ -1,11 +1,18 @@
 import os
 import structlog
-from typing import Any, Dict
+import sys
+import io
+import re
+import contextvars
+from typing import Any, Dict, Callable, Optional
 
 logger = structlog.get_logger()
 
 # Global model cache
 _MODELS = {}
+
+# Context variable for thread-safe progress tracking
+_PROGRESS_CALLBACK = contextvars.ContextVar("_progress_callback", default=None)
 
 def get_model(model_name: str):
     """Retrieves or loads a Whisper model."""
@@ -17,9 +24,44 @@ def get_model(model_name: str):
         _MODELS[model_name] = whisper.load_model(model_name, device=device)
     return _MODELS[model_name]
 
+class ProgressStdout(io.TextIOBase):
+    """
+    A custom stdout wrapper to detect Whisper segments during transcription.
+    Uses contextvars for thread-safe callback execution.
+    Whisper prints segments when verbose=True.
+    Format: [00:00.000 --> 00:05.000] or [00:00:00.000 --> 00:00:05.000]
+    """
+    def __init__(self, original_stdout):
+        self.original_stdout = original_stdout
+        # Regex handles both MM:SS.mmm and HH:MM:SS.mmm formats
+        self.segment_pattern = re.compile(r"\[(?:\d+:)?\d{2}:\d{2}\.\d{3} --> (?:\d+:)?\d{2}:\d{2}\.\d{3}\]")
+
+    def write(self, s):
+        callback = _PROGRESS_CALLBACK.get()
+        if callback:
+            # findall() to catch multiple segments in one flush
+            matches = self.segment_pattern.findall(s)
+            for _ in matches:
+                try:
+                    callback()
+                except Exception:
+                    pass
+        return self.original_stdout.write(s)
+
+    def flush(self):
+        return self.original_stdout.flush()
+
+# Globally patch stdout once to handle all threads safely via ContextVar
+def patch_stdout():
+    if not isinstance(sys.stdout, ProgressStdout):
+        sys.stdout = ProgressStdout(sys.stdout)
+
+patch_stdout()
+
 def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
     Transcribes a media file using the OpenAI Whisper API.
+    Note: Real-time progress is not supported for OpenAI API.
     """
     from openai import OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -43,11 +85,14 @@ def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str
                 response_format="verbose_json"
             )
 
-    # Adapt the response to match the structure expected by the app
-    # Whisper API response in 'verbose_json' includes 'text' and 'segments'
     return response.model_dump()
 
-def transcribe_with_whisper(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
+def transcribe_with_whisper(
+    file_path: str,
+    language: str = "auto",
+    task: str = "transcribe",
+    on_segment: Optional[Callable] = None
+) -> Dict[str, Any]:
     """
     Transcribes a media file using either local Whisper or OpenAI API.
     
@@ -55,11 +100,11 @@ def transcribe_with_whisper(file_path: str, language: str = "auto", task: str = 
         file_path: Path to the media (audio or video) file.
         language: Language code or "auto" for detection.
         task: Whisper task type ("transcribe" or "translate").
+        on_segment: Callback triggered for each transcribed segment (local only).
         
     Returns:
         The full Whisper result dictionary.
     """
-    # Use OpenAI API if requested or if local whisper is not suitable (e.g., on Vercel)
     if os.getenv("OPENAI_API_KEY") or os.getenv("USE_OPENAI_API") == "true":
         try:
             return transcribe_with_openai_api(file_path, language, task)
@@ -73,12 +118,19 @@ def transcribe_with_whisper(file_path: str, language: str = "auto", task: str = 
         model_name = os.getenv("WHISPER_MODEL", "base")
         model = get_model(model_name)
         
-        # Whisper handles both audio and video files directly using ffmpeg.
-        # It also handles auto-detection if language is None.
         lang = None if language == "auto" else language
         
         logger.info("Starting local Whisper task", file=file_path, language=language, task=task, model=model_name)
-        result = model.transcribe(file_path, language=lang, task=task)
+
+        if on_segment:
+            token = _PROGRESS_CALLBACK.set(on_segment)
+            try:
+                # Local whisper handles both audio and video using ffmpeg.
+                result = model.transcribe(file_path, language=lang, task=task, verbose=True)
+            finally:
+                _PROGRESS_CALLBACK.reset(token)
+        else:
+            result = model.transcribe(file_path, language=lang, task=task)
         
         return result
     except ImportError:

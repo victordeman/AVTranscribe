@@ -17,24 +17,41 @@ app.conf.beat_schedule = {
     },
 }
 
+def update_progress(task_id: str):
+    """
+    Increments the progress count for a transcription task.
+    """
+    try:
+        with session_scope() as db:
+            trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+            if trans:
+                trans.progress += 1
+                db.commit()
+    except Exception as e:
+        logger.error("Failed to update task progress", task_id=task_id, error=str(e))
+
 @app.task(bind=True, max_retries=3)
 def transcribe_task(self, file_path: str, language: str, format: str, task_id: str):
     """
     Celery task for transcribing media files with automated retries.
     """
     try:
-        # Update status to processing
+        # Update status to processing and reset progress
         with session_scope() as db:
             trans = db.query(Transcription).filter(Transcription.id == task_id).first()
             if not trans:
                 logger.error("Transcription record not found", task_id=task_id)
                 return
             trans.status = "processing"
+            trans.progress = 0
 
         logger.info("Starting transcription task", task_id=task_id, file=file_path)
         
-        # Execute transcription
-        result = transcribe_with_whisper(file_path, language=language)
+        # Execute transcription with progress callback
+        def on_segment():
+            update_progress(task_id)
+
+        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
         
         text = result.get("text", "").strip()
         segments = result.get("segments", [])

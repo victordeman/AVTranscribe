@@ -52,6 +52,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 if os.path.exists(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+def update_progress_sync(task_id: str):
+    """
+    Synchronous helper to increment progress.
+    """
+    try:
+        with session_scope() as db:
+            trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+            if trans:
+                trans.progress += 1
+    except Exception as e:
+        logger.error("Failed to update task progress", task_id=task_id, error=str(e))
+
 def run_transcription_sync(file_path: str, language: str, format: str, task_id: str):
     """
     Synchronous transcription helper for BackgroundTasks (used in serverless mode).
@@ -61,8 +73,13 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
             trans = db.query(Transcription).filter(Transcription.id == task_id).first()
             if trans:
                 trans.status = "processing"
+                trans.progress = 0
 
-        result = transcribe_with_whisper(file_path, language=language)
+        def on_segment():
+            update_progress_sync(task_id)
+
+        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
+
         text = result.get("text", "").strip()
         segments = result.get("segments", [])
         csv_path = clean_to_csv(segments, task_id)
