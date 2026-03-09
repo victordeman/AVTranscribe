@@ -43,6 +43,7 @@ def client(db_session):
 def test_home(client):
     response = client.get("/")
     assert response.status_code == 200
+    # Both React and HTMX have "Upload Media"
     assert "Upload Media" in response.text
 
 @patch("src.main.transcribe_with_whisper")
