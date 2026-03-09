@@ -100,11 +100,11 @@ def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str
             )
 
     result = response.model_dump()
-
+    
     # Language detection fallback for OpenAI API
     if language == "auto" and not result.get("language"):
         result["language"] = detect_language_fallback(result.get("text", ""))
-
+        
     return result
 
 def transcribe_with_whisper(
