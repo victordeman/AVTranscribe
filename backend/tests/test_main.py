@@ -43,8 +43,10 @@ def client(db_session):
 def test_home(client):
     response = client.get("/")
     assert response.status_code == 200
-    # Both React and HTMX have "Upload Media"
-    assert "Upload Media" in response.text
+    # Both React (via id="root") and HTMX (via "Upload Media") should be detectable
+    # If React is built and served, it will have <div id="root"></div>
+    # If HTMX is served, it will have "Upload Media"
+    assert "Upload Media" in response.text or 'id="root"' in response.text
 
 @patch("src.main.transcribe_with_whisper")
 @patch("src.main.open", create=True)
