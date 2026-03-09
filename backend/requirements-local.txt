@@ -1,3 +1,4 @@
 -r requirements.txt
 openai-whisper==20231117
 torch
+langdetect==1.0.9

@@ -1,6 +1,6 @@
 import os
 import pytest
-from src.utils import validate_file, clean_to_csv, save_text
+from src.utils import validate_file, clean_to_csv, save_text, save_timestamped_text, format_timestamp
 from fastapi import UploadFile
 from io import BytesIO
 from starlette.datastructures import Headers
@@ -84,3 +84,27 @@ def test_save_text():
         assert content == text
         
     os.remove(txt_path)
+
+def test_format_timestamp():
+    assert format_timestamp(0) == "[00:00:00.000]"
+    assert format_timestamp(3661.123) == "[01:01:01.123]"
+    assert format_timestamp(61.5) == "[00:01:01.500]"
+
+def test_save_timestamped_text():
+    segments = [
+        {"start": 0.0, "end": 2.5, "text": "Hello world"},
+        {"start": 2.5, "end": 5.0, "text": "This is a test"}
+    ]
+    task_id = "test_task_ts"
+    ts_path = save_timestamped_text(segments, task_id)
+
+    assert os.path.exists(ts_path)
+    assert ts_path == f"/tmp/{task_id}_timestamps.txt"
+
+    with open(ts_path, "r") as f:
+        lines = f.readlines()
+        assert len(lines) == 2
+        assert "[00:00:00.000] --> [00:00:02.500]  Hello world\n" in lines[0]
+        assert "[00:00:02.500] --> [00:00:05.000]  This is a test\n" in lines[1]
+
+    os.remove(ts_path)

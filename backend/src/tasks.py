@@ -2,7 +2,7 @@ from celery import Celery
 import os
 import time
 from src.transcribe import transcribe_with_whisper
-from src.utils import clean_to_csv
+from src.utils import clean_to_csv, save_timestamped_text
 from src.models import session_scope, Transcription
 import structlog
 
@@ -55,8 +55,10 @@ def transcribe_task(self, file_path: str, language: str, format: str, task_id: s
         
         text = result.get("text", "").strip()
         segments = result.get("segments", [])
+        detected_lang = result.get("language", language)
         progress_count = len(segments)
         csv_path = clean_to_csv(segments, task_id)
+        text_timestamps_path = save_timestamped_text(segments, task_id)
         
         # Update record with results
         with session_scope() as db:
@@ -64,6 +66,8 @@ def transcribe_task(self, file_path: str, language: str, format: str, task_id: s
             if trans:
                 trans.text = text
                 trans.csv_path = csv_path
+                trans.text_timestamps_path = text_timestamps_path
+                trans.language = detected_lang
                 trans.progress = progress_count
                 trans.status = "done"
         

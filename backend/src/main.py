@@ -8,7 +8,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.models import Base, Transcription, SessionLocal, engine, session_scope
 from src.transcribe import transcribe_with_whisper
-from src.utils import validate_file, save_text, clean_to_csv
+from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text
 import uuid
 import os
 import shutil
@@ -82,13 +82,17 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
 
         text = result.get("text", "").strip()
         segments = result.get("segments", [])
+        detected_lang = result.get("language", language)
         csv_path = clean_to_csv(segments, task_id)
+        text_timestamps_path = save_timestamped_text(segments, task_id)
 
         with session_scope() as db:
             trans = db.query(Transcription).filter(Transcription.id == task_id).first()
             if trans:
                 trans.text = text
                 trans.csv_path = csv_path
+                trans.text_timestamps_path = text_timestamps_path
+                trans.language = detected_lang
                 trans.progress = len(segments)
                 trans.status = "done"
 
@@ -201,5 +205,14 @@ async def download(task_id: str, fmt: str, db = Depends(get_db)):
         if not trans.csv_path or not os.path.exists(trans.csv_path):
              raise HTTPException(status_code=404, detail="CSV file not found")
         return FileResponse(trans.csv_path, filename="transcription.csv")
+    elif fmt == "text_timestamps":
+        if not trans.text_timestamps_path or not os.path.exists(trans.text_timestamps_path):
+            # Fallback generation if file missing
+            from src.transcribe import transcribe_with_whisper
+            # Note: This is a heavy fallback, usually the file should exist.
+            # However, for simplicity if it's missing we just return 404 for now
+            # as re-transcribing here is not feasible without the original file.
+            raise HTTPException(status_code=404, detail="Timestamped text file not found")
+        return FileResponse(trans.text_timestamps_path, filename="transcription_timestamps.txt")
     
-    raise HTTPException(status_code=400, detail="Invalid format: text or csv")
+    raise HTTPException(status_code=400, detail="Invalid format: text, csv or text_timestamps")
