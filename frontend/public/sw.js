@@ -20,8 +20,8 @@ self.addEventListener('fetch', (event) => {
 
   // Bypass API calls
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/transcribe') ||
-      url.pathname.startsWith('/status') ||
+  if (url.pathname.startsWith('/transcribe') || 
+      url.pathname.startsWith('/status') || 
       url.pathname.startsWith('/download')) {
     return;
   }
