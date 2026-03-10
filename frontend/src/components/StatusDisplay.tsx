@@ -126,7 +126,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ taskId }) => {
             <ProgressBar status={task.status} progress={task.progress} />
           </div>
 
-          <p className="text-[10px] text-gray-400 text-center flex items-center justify-center">
+          <p className="text-[10px] text-gray-600 text-center flex items-center justify-center">
             <Clock className="h-3 w-3 mr-1" />
             Do not close this page while processing
           </p>
