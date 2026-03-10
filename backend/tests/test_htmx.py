@@ -3,8 +3,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from src.main import app, get_db
-from src.models import Base, Transcription
+from backend.src.main import app, get_db
+from backend.src.models import Base, Transcription
 from unittest.mock import patch, MagicMock
 
 # Test Database setup
