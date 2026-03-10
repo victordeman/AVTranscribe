@@ -6,9 +6,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from src.models import Base, Transcription, SessionLocal, engine, session_scope
-from src.transcribe import transcribe_with_whisper
-from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text
+from .models import Base, Transcription, SessionLocal, engine, session_scope
+from .transcribe import transcribe_with_whisper
+from .utils import validate_file, save_text, clean_to_csv, save_timestamped_text
 import uuid
 import os
 import shutil
