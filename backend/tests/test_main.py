@@ -3,8 +3,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from src.main import app, get_db
-from src.models import Base, Transcription
+from backend.src.main import app, get_db
+from backend.src.models import Base, Transcription
 from unittest.mock import patch, MagicMock
 
 # Test Database setup
@@ -48,8 +48,8 @@ def test_home(client):
     # If HTMX is served, it will have "Upload Media"
     assert "Upload Media" in response.text or 'id="root"' in response.text
 
-@patch("src.main.transcribe_with_whisper")
-@patch("src.main.open", create=True)
+@patch("backend.src.main.transcribe_with_whisper")
+@patch("backend.src.main.open", create=True)
 def test_transcribe_success(mock_open, mock_transcribe, client, db_session):
     mock_file = MagicMock()
     mock_open.return_value.__enter__.return_value = mock_file
