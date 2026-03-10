@@ -57,6 +57,28 @@ if os.path.exists(STATIC_DIR):
 if os.path.exists(os.path.join(FRONTEND_DIST_DIR, "assets")):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST_DIR, "assets")), name="assets")
 
+# PWA Support: Serve manifest, service worker, and icons from root
+@app.get("/manifest.json")
+async def get_manifest():
+    fe_manifest = os.path.join(FRONTEND_DIST_DIR, "manifest.json")
+    if os.path.exists(fe_manifest):
+        return FileResponse(fe_manifest)
+    return FileResponse(os.path.join(STATIC_DIR, "manifest.json"))
+
+@app.get("/sw.js")
+async def get_sw():
+    fe_sw = os.path.join(FRONTEND_DIST_DIR, "sw.js")
+    if os.path.exists(fe_sw):
+        return FileResponse(fe_sw, media_type="application/javascript")
+    return FileResponse(os.path.join(STATIC_DIR, "sw.js"), media_type="application/javascript")
+
+@app.get("/icon.svg")
+async def get_icon():
+    fe_icon = os.path.join(FRONTEND_DIST_DIR, "icon.svg")
+    if os.path.exists(fe_icon):
+        return FileResponse(fe_icon)
+    return FileResponse(os.path.join(STATIC_DIR, "icon.svg"))
+
 def update_progress_sync(task_id: str):
     """
     Synchronous helper to increment progress.
