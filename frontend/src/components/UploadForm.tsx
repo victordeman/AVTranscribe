@@ -58,9 +58,9 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
 
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden p-8 border border-gray-200">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6 border-b border-gray-100 pb-2">Upload Media</h2>
+      <h2 id="upload-form-title" className="text-2xl font-semibold text-gray-800 mb-6 border-b border-gray-100 pb-2">Upload Media</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} aria-labelledby="upload-form-title" className="space-y-6">
         <div>
           <label htmlFor="file" className="block text-sm font-medium text-gray-700 mb-1">
             Select File (Audio or Video)
@@ -71,6 +71,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
               name="file"
               id="file"
               required
+              aria-describedby="file-input-help"
               onChange={handleFileChange}
               disabled={isUploading}
               className="block w-full text-sm text-gray-500
@@ -81,7 +82,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
                 hover:file:bg-indigo-100 cursor-pointer transition-all disabled:opacity-50"
             />
           </div>
-          <p className="mt-1 text-xs text-gray-400">Supported formats: mp3, wav, mp4, mkv, etc. Max 100MB.</p>
+          <p id="file-input-help" className="mt-1 text-xs text-gray-600">Supported formats: mp3, wav, mp4, mkv, etc. Max 100MB.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -141,12 +142,12 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
           >
             {isUploading ? (
               <>
-                <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" aria-hidden="true" />
                 Uploading...
               </>
             ) : (
               <>
-                <Upload className="-ml-1 mr-2 h-5 w-5" />
+                <Upload className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
                 Transcribe Now
               </>
             )}

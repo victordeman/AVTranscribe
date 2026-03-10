@@ -61,7 +61,7 @@ function App() {
           {taskId && <StatusDisplay taskId={taskId} />}
         </main>
 
-        <footer className="mt-16 text-center text-gray-400 text-sm">
+        <footer className="mt-16 text-center text-gray-600 text-sm">
           <p>&copy; 2024 AVTranscribe. Powered by FastAPI, Celery, and Whisper.</p>
         </footer>
       </div>
