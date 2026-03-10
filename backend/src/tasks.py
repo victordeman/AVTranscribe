@@ -1,9 +1,9 @@
 from celery import Celery
 import os
 import time
-from src.transcribe import transcribe_with_whisper
-from src.utils import clean_to_csv, save_timestamped_text
-from src.models import session_scope, Transcription
+from .transcribe import transcribe_with_whisper
+from .utils import clean_to_csv, save_timestamped_text
+from .models import session_scope, Transcription
 import structlog
 
 logger = structlog.get_logger()
