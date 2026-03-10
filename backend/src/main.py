@@ -1,14 +1,17 @@
-from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from src.models import Base, Transcription, SessionLocal, engine, session_scope
+from src.models import Base, Transcription, User, SessionLocal, engine, session_scope
 from src.transcribe import transcribe_with_whisper
 from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text
+from src.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+from datetime import timedelta
 import uuid
 import os
 import shutil
@@ -135,6 +138,32 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
         if os.path.exists(file_path):
             os.remove(file_path)
 
+@app.post("/signup")
+async def signup(username: str = Form(...), password: str = Form(...), db = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    hashed_password = get_password_hash(password)
+    new_user = User(username=username, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
+
+@app.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     # Try to serve React app first if built
@@ -153,7 +182,8 @@ async def transcribe(
     file: UploadFile,
     language: str = Form("auto"),
     format: str = Form("auto"),
-    db = Depends(get_db)
+    db = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     if not validate_file(file):
         logger.error("Invalid file upload", filename=file.filename or "unknown")

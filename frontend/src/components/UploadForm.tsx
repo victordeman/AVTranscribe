@@ -4,7 +4,7 @@ import { Upload, Loader2 } from 'lucide-react';
 
 interface UploadFormProps {
   onUploadStart: (taskId: string) => void;
-  onUploadProgress: (progress: number) => void;
+  onUploadProgress: (progress: number, total?: number) => void;
 }
 
 const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress }) => {
@@ -42,7 +42,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            onUploadProgress(percentCompleted);
+            onUploadProgress(percentCompleted, progressEvent.total);
           }
         },
       });
