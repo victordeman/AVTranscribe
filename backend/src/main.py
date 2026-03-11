@@ -100,7 +100,7 @@ def update_progress_sync(task_id: str):
     except Exception as e:
         logger.error("Failed to update task progress", task_id=task_id, error=str(e))
 
-def run_transcription_sync(file_path: str, language: str, format: str, task_id: str):
+def run_transcription_sync(file_path: str, language: str, format: str, task_id: str, diarize: bool = False):
     """
     Synchronous transcription helper for BackgroundTasks (used in serverless mode).
     """
@@ -114,7 +114,7 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
         def on_segment():
             update_progress_sync(task_id)
 
-        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
+        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment, diarize=diarize)
 
         text = result.get("text", "").strip()
         segments = result.get("segments", [])
@@ -196,6 +196,7 @@ async def transcribe(
     file: UploadFile,
     language: str = Form("auto"),
     format: str = Form("auto"),
+    diarize: bool = Form(False),
     db = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -227,7 +228,8 @@ async def transcribe(
         id=task_id, 
         status="queued",
         filename=safe_filename,
-        language=language
+        language=language,
+        diarize=diarize
     )
     db.add(trans)
     db.commit()
@@ -236,10 +238,10 @@ async def transcribe(
     use_celery = os.getenv("REDIS_URL") is not None and os.getenv("VERCEL") is None
     if use_celery:
         from src.tasks import transcribe_task
-        transcribe_task.delay(temp_path, language, format, task_id)
+        transcribe_task.delay(temp_path, language, format, task_id, diarize)
     else:
         logger.info("Using BackgroundTasks (Serverless Mode)", task_id=task_id)
-        background_tasks.add_task(run_transcription_sync, temp_path, language, format, task_id)
+        background_tasks.add_task(run_transcription_sync, temp_path, language, format, task_id, diarize)
     
     if "application/json" in request.headers.get("Accept", ""):
         return JSONResponse({"task_id": task_id, "status": "queued", "progress": 0})

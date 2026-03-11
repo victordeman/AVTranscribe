@@ -11,6 +11,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState('auto');
   const [format, setFormat] = useState('auto');
+  const [diarize, setDiarize] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +33,7 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
     formData.append('file', file);
     formData.append('language', language);
     formData.append('format', format);
+    formData.append('diarize', String(diarize));
 
     try {
       const response = await axios.post('/transcribe', formData, {
@@ -126,6 +128,20 @@ const UploadForm: React.FC<UploadFormProps> = ({ onUploadStart, onUploadProgress
               <option value="video">Video</option>
             </select>
           </div>
+        </div>
+
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="diarize"
+            checked={diarize}
+            onChange={(e) => setDiarize(e.target.checked)}
+            disabled={isUploading}
+            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer disabled:opacity-50"
+          />
+          <label htmlFor="diarize" className="ml-2 block text-sm text-gray-700 cursor-pointer select-none">
+            Speaker Diarization (identify different speakers)
+          </label>
         </div>
 
         {error && (

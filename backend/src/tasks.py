@@ -31,7 +31,7 @@ def update_progress(task_id: str):
         logger.error("Failed to update task progress", task_id=task_id, error=str(e))
 
 @app.task(bind=True, max_retries=3)
-def transcribe_task(self, file_path: str, language: str, format: str, task_id: str):
+def transcribe_task(self, file_path: str, language: str, format: str, task_id: str, diarize: bool = False):
     """
     Celery task for transcribing media files with automated retries.
     """
@@ -51,7 +51,7 @@ def transcribe_task(self, file_path: str, language: str, format: str, task_id: s
         def on_segment():
             update_progress(task_id)
 
-        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment)
+        result = transcribe_with_whisper(file_path, language=language, on_segment=on_segment, diarize=diarize)
         
         text = result.get("text", "").strip()
         segments = result.get("segments", [])

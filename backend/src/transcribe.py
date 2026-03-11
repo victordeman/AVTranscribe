@@ -1,62 +1,22 @@
 import os
 import structlog
-import sys
-import io
-import re
-import contextvars
-from typing import Any, Dict, Callable, Optional
+from typing import Any, Dict, Callable, Optional, List
 
 logger = structlog.get_logger()
 
 # Global model cache
 _MODELS = {}
 
-# Context variable for thread-safe progress tracking
-_PROGRESS_CALLBACK = contextvars.ContextVar("_progress_callback", default=None)
-
 def get_model(model_name: str):
-    """Retrieves or loads a Whisper model."""
-    import whisper
+    """Retrieves or loads a Faster-Whisper model."""
+    from faster_whisper import WhisperModel
     import torch
     if model_name not in _MODELS:
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info("Loading Whisper model", model=model_name, device=device)
-        _MODELS[model_name] = whisper.load_model(model_name, device=device)
+        compute_type = "float16" if device == "cuda" else "int8"
+        logger.info("Loading Faster-Whisper model", model=model_name, device=device, compute_type=compute_type)
+        _MODELS[model_name] = WhisperModel(model_name, device=device, compute_type=compute_type)
     return _MODELS[model_name]
-
-class ProgressStdout(io.TextIOBase):
-    """
-    A custom stdout wrapper to detect Whisper segments during transcription.
-    Uses contextvars for thread-safe callback execution.
-    Whisper prints segments when verbose=True.
-    Format: [00:00.000 --> 00:05.000] or [00:00:00.000 --> 00:00:05.000]
-    """
-    def __init__(self, original_stdout):
-        self.original_stdout = original_stdout
-        # Regex handles both MM:SS.mmm and HH:MM:SS.mmm formats
-        self.segment_pattern = re.compile(r"\[(?:\d+:)?\d{2}:\d{2}\.\d{3} --> (?:\d+:)?\d{2}:\d{2}\.\d{3}\]")
-
-    def write(self, s):
-        callback = _PROGRESS_CALLBACK.get()
-        if callback:
-            # findall() to catch multiple segments in one flush
-            matches = self.segment_pattern.findall(s)
-            for _ in matches:
-                try:
-                    callback()
-                except Exception:
-                    pass
-        return self.original_stdout.write(s)
-
-    def flush(self):
-        return self.original_stdout.flush()
-
-# Globally patch stdout once to handle all threads safely via ContextVar
-def patch_stdout():
-    if not isinstance(sys.stdout, ProgressStdout):
-        sys.stdout = ProgressStdout(sys.stdout)
-
-patch_stdout()
 
 def detect_language_fallback(text: str) -> str:
     """
@@ -75,7 +35,7 @@ def detect_language_fallback(text: str) -> str:
 def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
     Transcribes a media file using the OpenAI Whisper API.
-    Note: Real-time progress is not supported for OpenAI API.
+    Note: Real-time progress and Diarization are not supported for OpenAI API in this implementation.
     """
     from openai import OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -107,19 +67,94 @@ def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str
         
     return result
 
+def diarize_audio(file_path: str) -> List[Dict[str, Any]]:
+    """
+    Performs speaker diarization using pyannote.audio.
+    Requires HF_TOKEN environment variable for gated models.
+    """
+    try:
+        from pyannote.audio import Pipeline
+        import torch
+    except ImportError:
+        logger.warning("pyannote.audio not installed, skipping diarization")
+        return []
+
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        logger.warning("HF_TOKEN not set, pyannote.audio may fail for gated models")
+
+    try:
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=hf_token
+        )
+        if torch.cuda.is_available():
+            pipeline.to(torch.device("cuda"))
+
+        logger.info("Starting diarization", file=file_path)
+        diarization = pipeline(file_path)
+
+        speaker_segments = []
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            speaker_segments.append({
+                "start": turn.start,
+                "end": turn.end,
+                "speaker": speaker
+            })
+        return speaker_segments
+    except Exception as e:
+        logger.error("Diarization failed", error=str(e))
+        return []
+
+def merge_speakers(whisper_segments: List[Dict[str, Any]], speaker_segments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Merges Whisper transcription segments with speaker diarization info.
+    Assigns the most frequent speaker in the segment's time range.
+    """
+    if not speaker_segments:
+        return whisper_segments
+
+    merged = []
+    for seg in whisper_segments:
+        seg_start = seg["start"]
+        seg_end = seg["end"]
+
+        # Find all speaker turns that overlap with this Whisper segment
+        overlaps = []
+        for spk in speaker_segments:
+            overlap_start = max(seg_start, spk["start"])
+            overlap_end = min(seg_end, spk["end"])
+            if overlap_start < overlap_end:
+                overlaps.append((spk["speaker"], overlap_end - overlap_start))
+
+        if overlaps:
+            # Assign speaker with maximum overlap duration
+            speaker_durations = {}
+            for spk, duration in overlaps:
+                speaker_durations[spk] = speaker_durations.get(spk, 0) + duration
+            assigned_speaker = max(speaker_durations, key=speaker_durations.get)
+            seg["speaker"] = assigned_speaker
+        else:
+            seg["speaker"] = "UNKNOWN"
+
+        merged.append(seg)
+    return merged
+
 def transcribe_with_whisper(
     file_path: str,
     language: str = "auto",
     task: str = "transcribe",
+    diarize: bool = False,
     on_segment: Optional[Callable] = None
 ) -> Dict[str, Any]:
     """
-    Transcribes a media file using either local Whisper or OpenAI API.
+    Transcribes a media file using either Faster-Whisper or OpenAI API.
     
     Args:
         file_path: Path to the media (audio or video) file.
         language: Language code or "auto" for detection.
         task: Whisper task type ("transcribe" or "translate").
+        diarize: Whether to perform speaker diarization.
         on_segment: Callback triggered for each transcribed segment (local only).
         
     Returns:
@@ -132,7 +167,7 @@ def transcribe_with_whisper(
             if os.getenv("USE_OPENAI_API") == "true":
                 logger.error("OpenAI API task failed", file=file_path, error=str(e))
                 raise
-            logger.warning("OpenAI API failed, falling back to local whisper", error=str(e))
+            logger.warning("OpenAI API failed, falling back to local faster-whisper", error=str(e))
 
     try:
         model_name = os.getenv("WHISPER_MODEL", "base")
@@ -140,26 +175,52 @@ def transcribe_with_whisper(
         
         lang = None if language == "auto" else language
         
-        logger.info("Starting local Whisper task", file=file_path, language=language, task=task, model=model_name)
+        logger.info("Starting Faster-Whisper task", file=file_path, language=language, task=task, model=model_name)
 
-        if on_segment:
-            token = _PROGRESS_CALLBACK.set(on_segment)
-            try:
-                # Local whisper handles both audio and video using ffmpeg.
-                result = model.transcribe(file_path, language=lang, task=task, verbose=True)
-            finally:
-                _PROGRESS_CALLBACK.reset(token)
-        else:
-            result = model.transcribe(file_path, language=lang, task=task)
+        # Faster-whisper transcribe returns (segments_generator, info)
+        segments_gen, info = model.transcribe(
+            file_path,
+            language=lang,
+            task=task,
+            beam_size=5
+        )
+
+        segments = []
+        full_text = []
+        for segment in segments_gen:
+            seg_dict = {
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text
+            }
+            segments.append(seg_dict)
+            full_text.append(segment.text)
+            if on_segment:
+                try:
+                    on_segment()
+                except Exception:
+                    pass
         
-        # Language detection fallback for local Whisper
+        result = {
+            "text": "".join(full_text).strip(),
+            "segments": segments,
+            "language": info.language
+        }
+
+        # Speaker Diarization
+        if diarize:
+            speaker_segments = diarize_audio(file_path)
+            if speaker_segments:
+                result["segments"] = merge_speakers(result["segments"], speaker_segments)
+
+        # Language detection fallback
         if language == "auto" and (not result.get("language") or result.get("language") == "unknown"):
             result["language"] = detect_language_fallback(result.get("text", ""))
 
         return result
-    except ImportError:
-        logger.error("Local Whisper not available. Please set OPENAI_API_KEY.")
-        raise RuntimeError("Whisper dependencies not installed. Provide OPENAI_API_KEY for serverless mode.")
+    except ImportError as e:
+        logger.error("Faster-Whisper or dependencies not available", error=str(e))
+        raise RuntimeError("Faster-Whisper dependencies not installed. Provide OPENAI_API_KEY for serverless mode.")
     except Exception as e:
-        logger.error("Local Whisper task failed", file=file_path, task=task, error=str(e))
+        logger.error("Faster-Whisper task failed", file=file_path, task=task, error=str(e))
         raise
