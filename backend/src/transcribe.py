@@ -1,8 +1,5 @@
 import os
 import structlog
-import io
-import re
-import contextvars
 from typing import Any, Dict, Callable, Optional, List
 
 logger = structlog.get_logger()
