@@ -22,6 +22,8 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 def authenticate_user(db: Session, username: str, password: str):
+    if len(password) > 72:
+        return False
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return False
