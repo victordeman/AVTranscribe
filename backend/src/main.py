@@ -10,7 +10,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from src.models import Base, Transcription, User, SessionLocal, engine, session_scope
 from src.transcribe import transcribe_with_whisper
-from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text
+from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text, send_error_email
 from src.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta
 import uuid
@@ -136,6 +136,7 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
             os.remove(file_path)
     except Exception as e:
         logger.error("Background transcription failed", task_id=task_id, error=str(e))
+        send_error_email(task_id, str(e))
         with session_scope() as db:
             trans = db.query(Transcription).filter(Transcription.id == task_id).first()
             if trans:

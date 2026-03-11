@@ -2,7 +2,7 @@ from celery import Celery
 import os
 import time
 from .transcribe import transcribe_with_whisper
-from .utils import clean_to_csv, save_timestamped_text
+from .utils import clean_to_csv, save_timestamped_text, send_error_email
 from .models import session_scope, Transcription
 import structlog
 
@@ -98,6 +98,9 @@ def transcribe_task(self, file_path: str, language: str, format: str, task_id: s
                     trans.status = "failed"
                     trans.error_message = f"Failed after {self.max_retries} retries: {str(e)}"
             
+            # Final failure
+            send_error_email(task_id, str(e))
+
             # Cleanup input file on final failure
             if os.path.exists(file_path):
                 os.remove(file_path)

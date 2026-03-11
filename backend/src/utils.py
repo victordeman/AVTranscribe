@@ -1,6 +1,42 @@
 import csv
 import os
+import smtplib
+import ssl
+import structlog
+from email.message import EmailMessage
 from fastapi import UploadFile
+
+logger = structlog.get_logger()
+
+def send_error_email(task_id: str, error_message: str):
+    """
+    Sends an error alert email when a transcription task fails.
+    """
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = os.getenv("SMTP_PORT", "587")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    to_email = os.getenv("ALERT_EMAIL_TO")
+
+    if not all([smtp_host, smtp_user, smtp_password, to_email]):
+        logger.warning("SMTP configuration incomplete. Skipping error email.", task_id=task_id)
+        return
+
+    msg = EmailMessage()
+    msg.set_content(f"Transcription task {task_id} failed.\n\nError: {error_message}")
+    msg["Subject"] = f"AVTranscribe Alert: Task Failure ({task_id})"
+    msg["From"] = smtp_user
+    msg["To"] = to_email
+
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP(smtp_host, int(smtp_port)) as server:
+            server.starttls(context=context)
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        logger.info("Error alert email sent", task_id=task_id, recipient=to_email)
+    except Exception as e:
+        logger.error("Failed to send error alert email", task_id=task_id, error=str(e))
 
 def validate_file(file: UploadFile) -> bool:
     """
