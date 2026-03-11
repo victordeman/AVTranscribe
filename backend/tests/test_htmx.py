@@ -40,35 +40,37 @@ def client(db_session):
         yield c
     app.dependency_overrides.clear()
 
+import uuid
+
 def test_status_polling_queued(client, db_session):
-    task_id = "test-queued"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="queued", progress=0)
     db_session.add(trans)
     db_session.commit()
 
     response = client.get(f"/status/{task_id}")
     assert response.status_code == 200
-    assert 'hx-get="/status/test-queued"' in response.text
+    assert f'hx-get="/status/{task_id}"' in response.text
     assert 'hx-trigger="every 5s"' in response.text
     assert "bg-yellow-100" in response.text
     assert "In Queue" in response.text
 
 def test_status_polling_processing(client, db_session):
-    task_id = "test-processing"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="processing", progress=3)
     db_session.add(trans)
     db_session.commit()
 
     response = client.get(f"/status/{task_id}")
     assert response.status_code == 200
-    assert 'hx-get="/status/test-processing"' in response.text
+    assert f'hx-get="/status/{task_id}"' in response.text
     assert 'hx-trigger="every 5s"' in response.text
     assert "bg-blue-100" in response.text
     assert "Transcribing Media" in response.text
     assert "3 segments processed so far" in response.text
 
 def test_status_no_polling_done(client, db_session):
-    task_id = "test-done"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="done", progress=10)
     db_session.add(trans)
     db_session.commit()
@@ -81,7 +83,7 @@ def test_status_no_polling_done(client, db_session):
     assert "Total segments: 10" in response.text
 
 def test_status_no_polling_failed(client, db_session):
-    task_id = "test-failed"
+    task_id = str(uuid.uuid4())
     error_msg = "Something went wrong"
     trans = Transcription(id=task_id, status="failed", error_message=error_msg)
     db_session.add(trans)
@@ -95,14 +97,14 @@ def test_status_no_polling_failed(client, db_session):
     assert error_msg in response.text
 
 def test_status_polling_retrying(client, db_session):
-    task_id = "test-retrying"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="retrying (1/3)", progress=0)
     db_session.add(trans)
     db_session.commit()
 
     response = client.get(f"/status/{task_id}")
     assert response.status_code == 200
-    assert 'hx-get="/status/test-retrying"' in response.text
+    assert f'hx-get="/status/{task_id}"' in response.text
     assert 'hx-trigger="every 5s"' in response.text
     assert "bg-yellow-100" in response.text
     assert "Retrying Task" in response.text
