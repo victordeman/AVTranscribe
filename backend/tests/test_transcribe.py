@@ -3,12 +3,13 @@ from unittest.mock import MagicMock, patch
 import os
 import sys
 
-# Mock whisper and torch for the entire module if they don't exist
-sys.modules['whisper'] = MagicMock()
+# Mock faster-whisper and torch for the entire module if they don't exist
+sys.modules['faster_whisper'] = MagicMock()
 sys.modules['torch'] = MagicMock()
+sys.modules['pyannote.audio'] = MagicMock()
 
 import src.transcribe
-from src.transcribe import transcribe_with_whisper, _MODELS, ProgressStdout, _PROGRESS_CALLBACK
+from src.transcribe import transcribe_with_whisper, _MODELS
 
 @pytest.fixture(autouse=True)
 def clear_models_cache():
@@ -18,7 +19,16 @@ def clear_models_cache():
 def test_transcribe_with_whisper_success(mock_get_model):
     # Setup mock model
     mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "Hello world", "segments": []}
+
+    mock_segment = MagicMock()
+    mock_segment.start = 0.0
+    mock_segment.end = 1.0
+    mock_segment.text = "Hello world"
+
+    mock_info = MagicMock()
+    mock_info.language = "en"
+
+    mock_model.transcribe.return_value = ([mock_segment], mock_info)
     mock_get_model.return_value = mock_model
     
     # Execute
@@ -26,33 +36,33 @@ def test_transcribe_with_whisper_success(mock_get_model):
     
     # Assertions
     assert result["text"] == "Hello world"
-    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language="en", task="transcribe")
+    mock_model.transcribe.assert_called_once()
 
 @patch("src.transcribe.get_model")
 def test_transcribe_with_whisper_on_segment(mock_get_model):
     # Setup mock model
     mock_model = MagicMock()
     
-    # Callback
-    on_segment = MagicMock()
+    mock_segment = MagicMock()
+    mock_segment.start = 0.0
+    mock_segment.end = 1.0
+    mock_segment.text = "Hello world"
     
-    def mock_transcribe(*args, **kwargs):
-        if kwargs.get('verbose'):
-            # Manually simulate what ProgressStdout would do
-            ProgressStdout(sys.stdout).write("[00:00.000 --> 00:05.000] segment 1\n")
-            ProgressStdout(sys.stdout).write("[01:05.000 --> 01:10.000] segment 2\n")
-            ProgressStdout(sys.stdout).write("[02:00.000 --> 02:05.000] s3\n[02:05.000 --> 02:10.000] s4\n")
-        return {"text": "done", "segments": [{}, {}, {}, {}]}
+    mock_info = MagicMock()
+    mock_info.language = "en"
 
-    mock_model.transcribe.side_effect = mock_transcribe
+    mock_model.transcribe.return_value = ([mock_segment, mock_segment], mock_info)
     mock_get_model.return_value = mock_model
     
+    # Callback
+    on_segment = MagicMock()
+
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3", on_segment=on_segment)
     
     # Assertions
-    assert result["text"] == "done"
-    assert on_segment.call_count == 4
+    assert result["text"] == "Hello worldHello world"
+    assert on_segment.call_count == 2
 
 @patch("src.transcribe.get_model")
 def test_transcribe_with_whisper_error(mock_get_model):
@@ -65,16 +75,32 @@ def test_transcribe_with_whisper_error(mock_get_model):
     
     assert "Whisper error" in str(excinfo.value)
 
-@patch("whisper.load_model")
+@patch("faster_whisper.WhisperModel")
 @patch("torch.cuda.is_available", return_value=False)
-def test_get_model_cpu(mock_cuda, mock_load_model):
+def test_get_model_cpu(mock_cuda, mock_whisper_model):
     from src.transcribe import get_model
     get_model("base")
-    mock_load_model.assert_called_once_with("base", device="cpu")
+    mock_whisper_model.assert_called_once_with("base", device="cpu", compute_type="int8")
 
-@patch("whisper.load_model")
+@patch("faster_whisper.WhisperModel")
 @patch("torch.cuda.is_available", return_value=True)
-def test_get_model_cuda(mock_cuda, mock_load_model):
+def test_get_model_cuda(mock_cuda, mock_whisper_model):
     from src.transcribe import get_model
     get_model("base")
-    mock_load_model.assert_called_once_with("base", device="cuda")
+    mock_whisper_model.assert_called_once_with("base", device="cuda", compute_type="float16")
+
+def test_merge_speakers():
+    from src.transcribe import merge_speakers
+    whisper_segments = [
+        {"start": 0.0, "end": 2.0, "text": "Hello"},
+        {"start": 2.0, "end": 4.0, "text": "World"}
+    ]
+    speaker_segments = [
+        {"start": 0.0, "end": 2.5, "speaker": "SPEAKER_00"},
+        {"start": 2.5, "end": 4.0, "speaker": "SPEAKER_01"}
+    ]
+
+    merged = merge_speakers(whisper_segments, speaker_segments)
+
+    assert merged[0]["speaker"] == "SPEAKER_00"
+    assert merged[1]["speaker"] == "SPEAKER_01" # 2.0-4.0 overlaps 0.5s with SPK00 and 1.5s with SPK01

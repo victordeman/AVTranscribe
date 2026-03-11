@@ -79,15 +79,25 @@ def clean_to_csv(segments: list, task_id: str) -> str:
         Path to the generated CSV file.
     """
     csv_path = f"/tmp/{task_id}.csv"
+
+    # Check if speaker info is present in any segment
+    has_speaker = any("speaker" in seg for seg in segments)
+    fieldnames = ["start", "end", "text"]
+    if has_speaker:
+        fieldnames.insert(2, "speaker")
+
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["start", "end", "text"])
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for seg in segments:
-            writer.writerow({
+            row = {
                 "start": seg.get("start"),
                 "end": seg.get("end"),
                 "text": seg.get("text", "").strip()
-            })
+            }
+            if has_speaker:
+                row["speaker"] = seg.get("speaker", "UNKNOWN")
+            writer.writerow(row)
     return csv_path
 
 def save_text(text: str, task_id: str) -> str:
@@ -132,5 +142,9 @@ def save_timestamped_text(segments: list, task_id: str) -> str:
             start = format_timestamp(seg.get("start", 0.0))
             end = format_timestamp(seg.get("end", 0.0))
             text = seg.get("text", "").strip()
-            f.write(f"{start} --> {end}  {text}\n")
+            speaker = seg.get("speaker")
+            if speaker:
+                f.write(f"{start} --> {end} [{speaker}] {text}\n")
+            else:
+                f.write(f"{start} --> {end}  {text}\n")
     return txt_path

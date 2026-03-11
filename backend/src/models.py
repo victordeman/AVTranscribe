@@ -48,6 +48,7 @@ class Transcription(Base):
     text_timestamps_path: Mapped[str | None] = mapped_column(String, nullable=True)
     filename: Mapped[str | None] = mapped_column(String, nullable=True)
     language: Mapped[str | None] = mapped_column(String, nullable=True)
+    diarize: Mapped[bool] = mapped_column(default=False)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
     progress: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))

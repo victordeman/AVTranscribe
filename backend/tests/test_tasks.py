@@ -31,7 +31,7 @@ def test_transcribe_task_success(
     task_self.request.retries = 0
     task_self.max_retries = 3
     
-    transcribe_task.__wrapped__.__func__(task_self, "dummy.mp3", "en", "auto", "task-123")
+    transcribe_task.__wrapped__.__func__(task_self, "dummy.mp3", "en", "auto", "task-123", diarize=True)
     
     # Assertions
     assert mock_trans.status == "done"
@@ -39,7 +39,7 @@ def test_transcribe_task_success(
     assert mock_trans.csv_path == "/tmp/test.csv"
     assert mock_trans.progress == 1
     mock_remove.assert_called_once_with("dummy.mp3")
-    mock_transcribe.assert_called_once_with("dummy.mp3", language="en", on_segment=ANY)
+    mock_transcribe.assert_called_once_with("dummy.mp3", language="en", on_segment=ANY, diarize=True)
 
 @patch("backend.src.tasks.session_scope")
 @patch("backend.src.tasks.transcribe_with_whisper")

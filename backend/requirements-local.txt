@@ -1,4 +1,5 @@
 -r requirements.txt
-openai-whisper==20231117
+faster-whisper
+pyannote.audio
 torch
 langdetect==1.0.9
