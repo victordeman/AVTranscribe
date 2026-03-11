@@ -3,18 +3,26 @@ import UploadForm from './components/UploadForm';
 import StatusDisplay from './components/StatusDisplay';
 import { Loader2 } from 'lucide-react';
 
+import Auth from './components/Auth';
+import axios from 'axios';
+
 function App() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadEta, setUploadEta] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('token'));
 
-  // Set API base URL if needed (similar to the original HTMX implementation)
+  // Set up axios interceptor for JWT
   useEffect(() => {
-    const apiBase = window.localStorage.getItem('API_BASE_URL');
-    if (apiBase) {
-      // Axios can be configured globally or via an instance
-      // For simplicity in this demo, we assume the same origin or proxy
-    }
+    const interceptor = axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+    return () => axios.interceptors.request.eject(interceptor);
   }, []);
 
   const handleUploadStart = (id: string) => {
@@ -22,9 +30,27 @@ function App() {
     setIsUploading(false);
   };
 
-  const handleUploadProgress = (progress: number) => {
+  const handleUploadProgress = (progress: number, total?: number) => {
     setIsUploading(true);
     setUploadProgress(progress);
+
+    if (total) {
+      const fileSizeMB = total / (1024 * 1024);
+      const estMediaDurationMin = fileSizeMB;
+      const estProcessTimeSec = estMediaDurationMin * 60 / 5;
+
+      if (estProcessTimeSec < 60) {
+        setUploadEta('< 1 min');
+      } else {
+        setUploadEta(`~${Math.round(estProcessTimeSec / 60)} min`);
+      }
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsAuthenticated(false);
+    setTaskId(null);
   };
 
   return (
@@ -36,29 +62,45 @@ function App() {
         </header>
 
         <main className="max-w-xl mx-auto">
-          <UploadForm
-            onUploadStart={handleUploadStart}
-            onUploadProgress={handleUploadProgress}
-          />
+          {!isAuthenticated ? (
+            <Auth onLoginSuccess={() => setIsAuthenticated(true)} />
+          ) : (
+            <>
+              <div className="flex justify-end mb-4">
+                <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-red-600">Logout</button>
+              </div>
+              <UploadForm
+                onUploadStart={handleUploadStart}
+                onUploadProgress={handleUploadProgress}
+              />
 
-          {isUploading && (
-            <div className="w-full mt-6 bg-indigo-50 rounded-lg p-4 border border-indigo-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-indigo-700 uppercase">
-                  {uploadProgress >= 100 ? 'Finalizing upload...' : `Uploading: ${uploadProgress}%`}
-                </span>
-                <Loader2 className="animate-spin h-4 w-4 text-indigo-600" />
-              </div>
-              <div className="w-full bg-indigo-200 rounded-full h-1.5">
-                <div
-                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-            </div>
+              {isUploading && (
+                <div className="w-full mt-6 bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-semibold text-indigo-700 uppercase">
+                        {uploadProgress >= 100 ? 'Finalizing upload...' : `Uploading: ${uploadProgress}%`}
+                      </span>
+                      {uploadEta && (
+                        <span className="text-[10px] text-indigo-500 mt-1">
+                          Est. transcription time: {uploadEta}
+                        </span>
+                      )}
+                    </div>
+                    <Loader2 className="animate-spin h-4 w-4 text-indigo-600" />
+                  </div>
+                  <div className="w-full bg-indigo-200 rounded-full h-1.5">
+                    <div
+                      className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {taskId && <StatusDisplay taskId={taskId} />}
+            </>
           )}
-
-          {taskId && <StatusDisplay taskId={taskId} />}
         </main>
 
         <footer className="mt-16 text-center text-gray-600 text-sm">
