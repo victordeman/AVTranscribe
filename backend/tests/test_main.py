@@ -112,8 +112,9 @@ def test_transcribe_invalid_file(authenticated_client):
     assert response.status_code == 400
     assert "Invalid file" in response.json()["detail"]
 
+import uuid
 def test_get_status_success(client, db_session):
-    task_id = "test-task-id"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="processing", progress=5)
     db_session.add(trans)
     db_session.commit()
@@ -124,11 +125,12 @@ def test_get_status_success(client, db_session):
     assert "5 segments" in response.text
 
 def test_get_status_not_found(client):
-    response = client.get("/status/non-existent-id")
+    random_uuid = str(uuid.uuid4())
+    response = client.get(f"/status/{random_uuid}")
     assert response.status_code == 404
 
 def test_download_text_success(client, db_session):
-    task_id = "done-task-id"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="done", text="Transcription text")
     db_session.add(trans)
     db_session.commit()
@@ -146,7 +148,7 @@ def test_download_text_success(client, db_session):
             os.remove(file_path)
 
 def test_download_csv_success(client, db_session):
-    task_id = "done-task-id-csv"
+    task_id = str(uuid.uuid4())
     csv_path = f"/tmp/{task_id}.csv"
     trans = Transcription(id=task_id, status="done", csv_path=csv_path)
     db_session.add(trans)
@@ -164,7 +166,7 @@ def test_download_csv_success(client, db_session):
             os.remove(csv_path)
 
 def test_download_not_complete(client, db_session):
-    task_id = "pending-task-id"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="queued")
     db_session.add(trans)
     db_session.commit()
@@ -174,7 +176,7 @@ def test_download_not_complete(client, db_session):
     assert "Task not complete" in response.json()["detail"]
 
 def test_download_invalid_format(client, db_session):
-    task_id = "done-task-id-fmt"
+    task_id = str(uuid.uuid4())
     trans = Transcription(id=task_id, status="done")
     db_session.add(trans)
     db_session.commit()

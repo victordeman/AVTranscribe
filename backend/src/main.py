@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, Form, Request, HTTPException, Depends, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -28,10 +29,15 @@ FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(BASE_DIR)), "fr
 app = FastAPI()
 templates = Jinja2Templates(directory=TEMPLATE_DIR)
 
+# Security: Enforce HTTPS if configured
+if os.getenv("ENFORCE_HTTPS", "").lower() == "true":
+    app.add_middleware(HTTPSRedirectMiddleware)
+
 # CORS configuration
+allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this in production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -140,6 +146,13 @@ def run_transcription_sync(file_path: str, language: str, format: str, task_id: 
 
 @app.post("/signup")
 async def signup(username: str = Form(...), password: str = Form(...), db = Depends(get_db)):
+    if len(username) < 3 or len(username) > 50:
+        raise HTTPException(status_code=400, detail="Username must be between 3 and 50 characters")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if len(password) > 72:
+        raise HTTPException(status_code=400, detail="Password must be at most 72 characters long")
+
     user = db.query(User).filter(User.username == username).first()
     if user:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -185,6 +198,16 @@ async def transcribe(
     db = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Input validation
+    allowed_languages = {"auto", "en", "es", "fr", "de", "it", "pt", "nl", "ja", "ko", "zh"}
+    allowed_formats = {"auto", "text", "csv", "text_timestamps"}
+
+    if language not in allowed_languages and len(language) != 2:
+        raise HTTPException(status_code=400, detail="Invalid language code")
+
+    if format not in allowed_formats:
+        raise HTTPException(status_code=400, detail="Invalid format")
+
     if not validate_file(file):
         logger.error("Invalid file upload", filename=file.filename or "unknown")
         raise HTTPException(status_code=400, detail="Invalid file: Check type/size (max 100MB)")
@@ -227,8 +250,9 @@ async def transcribe(
     )
 
 @app.get("/status/{task_id}")
-async def get_status(request: Request, task_id: str, db = Depends(get_db)):
-    trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+async def get_status(request: Request, task_id: uuid.UUID, db = Depends(get_db)):
+    task_id_str = str(task_id)
+    trans = db.query(Transcription).filter(Transcription.id == task_id_str).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -252,8 +276,13 @@ async def get_status(request: Request, task_id: str, db = Depends(get_db)):
     )
 
 @app.get("/download/{task_id}/{fmt}")
-async def download(task_id: str, fmt: str, db = Depends(get_db)):
-    trans = db.query(Transcription).filter(Transcription.id == task_id).first()
+async def download(task_id: uuid.UUID, fmt: str, db = Depends(get_db)):
+    task_id_str = str(task_id)
+    allowed_fmts = {"text", "csv", "text_timestamps"}
+    if fmt not in allowed_fmts:
+        raise HTTPException(status_code=400, detail="Invalid format: text, csv or text_timestamps")
+
+    trans = db.query(Transcription).filter(Transcription.id == task_id_str).first()
     if not trans:
         raise HTTPException(status_code=404, detail="Task not found")
     if trans.status != "done":
