@@ -8,6 +8,8 @@ pyyaml==6.0.2
 slowapi==0.1.9
 python-multipart==0.0.22
 bcrypt==4.2.1
+python-jose[cryptography]==3.4.0
+passlib[bcrypt]==1.7.4
 openai==1.63.2
 structlog==24.1.0
 gunicorn==22.0.0
