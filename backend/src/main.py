@@ -8,10 +8,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from src.models import Base, Transcription, User, SessionLocal, engine, session_scope
-from src.transcribe import transcribe_with_whisper
-from src.utils import validate_file, save_text, clean_to_csv, save_timestamped_text, send_error_email
-from src.auth import authenticate_user, create_access_token, get_current_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
+from .models import Base, Transcription, User, SessionLocal, engine, session_scope
+from .transcribe import transcribe_with_whisper
+from .utils import validate_file, save_text, clean_to_csv, save_timestamped_text, send_error_email
+from .auth import authenticate_user, create_access_token, get_current_user, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES
 from datetime import timedelta
 import uuid
 import os
@@ -237,7 +237,7 @@ async def transcribe(
     # Decide between Celery and BackgroundTasks
     use_celery = os.getenv("REDIS_URL") is not None and os.getenv("VERCEL") is None
     if use_celery:
-        from src.tasks import transcribe_task
+        from .tasks import transcribe_task
         transcribe_task.delay(temp_path, language, format, task_id, diarize)
     else:
         logger.info("Using BackgroundTasks (Serverless Mode)", task_id=task_id)
