@@ -8,7 +8,14 @@ class Base(DeclarativeBase):
     pass
 
 # DB Setup
-DB_URL = os.getenv("DB_URL", "sqlite:///transcriptions.db")
+DB_URL = os.getenv("DB_URL")
+if not DB_URL:
+    if os.getenv("VERCEL"):
+        # Vercel filesystem is read-only except for /tmp
+        DB_URL = "sqlite:////tmp/transcriptions.db"
+    else:
+        DB_URL = "sqlite:///transcriptions.db"
+
 # Add sqlite-specific settings if needed, and ensure pool for in-memory
 engine_args = {}
 if "sqlite" in DB_URL:
