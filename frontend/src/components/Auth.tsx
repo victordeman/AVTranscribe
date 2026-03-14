@@ -55,8 +55,9 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Username</label>
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700">Username</label>
           <input
+            id="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -65,8 +66,9 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
           <input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

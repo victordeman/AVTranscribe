@@ -88,6 +88,17 @@ async def get_icon():
         return FileResponse(fe_icon)
     return FileResponse(os.path.join(STATIC_DIR, "icon.svg"))
 
+@app.get("/vite.svg")
+async def get_vite_svg():
+    fe_vite = os.path.join(FRONTEND_DIST_DIR, "vite.svg")
+    if os.path.exists(fe_vite):
+        return FileResponse(fe_vite)
+    # Fallback for development
+    dev_vite = os.path.join(os.path.dirname(FRONTEND_DIST_DIR), "public", "vite.svg")
+    if os.path.exists(dev_vite):
+        return FileResponse(dev_vite)
+    return FileResponse(os.path.join(STATIC_DIR, "vite.svg"))
+
 def update_progress_sync(task_id: str):
     """
     Synchronous helper to increment progress.
@@ -201,8 +212,8 @@ async def transcribe(
     current_user: User = Depends(get_current_user)
 ):
     # Input validation
-    allowed_languages = {"auto", "en", "es", "fr", "de", "it", "pt", "nl", "ja", "ko", "zh"}
-    allowed_formats = {"auto", "text", "csv", "text_timestamps"}
+    allowed_languages = {"auto", "en", "es", "fr", "de", "it", "pt", "nl", "ja", "ko", "zh", "ru"}
+    allowed_formats = {"auto", "text", "csv", "text_timestamps", "audio", "video"}
 
     if language not in allowed_languages and len(language) != 2:
         raise HTTPException(status_code=400, detail="Invalid language code")
@@ -261,7 +272,7 @@ async def get_status(request: Request, task_id: uuid.UUID, db = Depends(get_db))
     
     if "application/json" in request.headers.get("Accept", ""):
         return JSONResponse({
-            "task_id": task_id,
+            "task_id": str(task_id),
             "status": trans.status,
             "progress": trans.progress,
             "error_message": trans.error_message
