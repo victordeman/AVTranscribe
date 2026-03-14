@@ -9,6 +9,14 @@
       "destination": "/api/index.py"
     },
     {
+      "source": "/signup",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/login",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/status/(.*)",
       "destination": "/api/index.py"
     },

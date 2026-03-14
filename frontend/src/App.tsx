@@ -13,16 +13,32 @@ function App() {
   const [uploadEta, setUploadEta] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('token'));
 
-  // Set up axios interceptor for JWT
+  // Set up axios interceptors for JWT and error handling
   useEffect(() => {
-    const interceptor = axios.interceptors.request.use((config) => {
+    const requestInterceptor = axios.interceptors.request.use((config) => {
       const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;
     });
-    return () => axios.interceptors.request.eject(interceptor);
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          localStorage.removeItem('token');
+          setIsAuthenticated(false);
+          setTaskId(null);
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
   }, []);
 
   const handleUploadStart = (id: string) => {
