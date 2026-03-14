@@ -24,8 +24,12 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
     try {
       if (isLogin) {
         const response = await axios.post('/login', formData);
-        localStorage.setItem('token', response.data.access_token);
-        onLoginSuccess();
+        if (response.data && response.data.access_token) {
+          localStorage.setItem('token', response.data.access_token);
+          onLoginSuccess();
+        } else {
+          setError('Invalid server response: missing access token');
+        }
       } else {
         await axios.post('/signup', formData);
         setMessage('Account created! Please login.');

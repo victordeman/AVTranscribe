@@ -4,11 +4,14 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import JWTError, ExpiredSignatureError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+import structlog
 
 from .models import User, SessionLocal
+
+logger = structlog.get_logger()
 
 # Secrets & Config
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-it-in-production")
@@ -61,11 +64,17 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Se
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
+            logger.warning("JWT payload missing 'sub' claim")
             raise credentials_exception
-    except JWTError:
+    except ExpiredSignatureError:
+        logger.warning("JWT token expired")
+        raise credentials_exception
+    except JWTError as e:
+        logger.warning("JWT decode failed", error=str(e))
         raise credentials_exception
 
     user = db.query(User).filter(User.username == username).first()
     if user is None:
+        logger.warning("User from JWT not found in database", username=username)
         raise credentials_exception
     return user
