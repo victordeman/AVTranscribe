@@ -1,6 +1,6 @@
 # AVTranscribe
 
-AVTranscribe is a production-ready, open-source audio and video transcription system. It leverages OpenAI's Whisper for high-accuracy AI transcription, FastAPI for a modern web interface, and Celery with Redis for robust background task processing.
+AVTranscribe is a production-ready, open-source audio and video transcription system. It leverages OpenAI's Whisper for high-accuracy AI transcription, FastAPI for a modern web interface, and Celery with Redis for robust background task processing. Check it out here https://avtranscribe0.vercel.app/
 
 ## 🚀 Key Features
 
