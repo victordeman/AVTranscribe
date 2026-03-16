@@ -288,10 +288,10 @@
 
                                 // Simple ETA calculation for transcription (heuristic)
                                 // Based on average audio duration vs file size (~1MB/min for mp3)
-                                // and Whisper 'base' model speed (~1:5 real-time)
+                                // and Distil-Whisper 'large-v3' model speed (~1:2 real-time on CPU)
                                 const fileSizeMB = evt.detail.total / (1024 * 1024);
                                 const estMediaDurationMin = fileSizeMB; // very rough estimate
-                                const estProcessTimeSec = estMediaDurationMin * 60 / 5; // 1:5 speedup
+                                const estProcessTimeSec = estMediaDurationMin * 60 / 2; // 1:2 speedup
 
                                 if (estProcessTimeSec < 60) {
                                     etaText.innerText = `Est. transcription time: < 1 min`;

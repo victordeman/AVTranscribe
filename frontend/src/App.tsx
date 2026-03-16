@@ -53,7 +53,7 @@ function App() {
     if (total) {
       const fileSizeMB = total / (1024 * 1024);
       const estMediaDurationMin = fileSizeMB;
-      const estProcessTimeSec = estMediaDurationMin * 60 / 5;
+      const estProcessTimeSec = estMediaDurationMin * 60 / 2;
 
       if (estProcessTimeSec < 60) {
         setUploadEta('< 1 min');
