@@ -4,7 +4,7 @@ AVTranscribe is a production-ready, open-source audio and video transcription sy
 
 ## 🚀 Key Features
 
-- **AI-Powered Transcription**: High-accuracy transcription using OpenAI's Whisper models.
+- **AI-Powered Transcription**: High-accuracy transcription using Hugging Face Distil-Whisper models (distil-large-v3).
 - **Audio & Video Support**: Handles various formats including MP3, WAV, MP4, AVI, and MOV.
 - **Language Detection**: Automatically detects the spoken language or allows manual selection.
 - **Asynchronous Processing**: Scalable background task management with Celery and Redis.
@@ -167,5 +167,5 @@ pytest backend/tests/
 
 - `REDIS_URL`: Connection string for Redis (default: `redis://localhost:6379/0`).
 - `DB_URL`: Connection string for the database (default: `sqlite:///transcriptions.db`).
-- `WHISPER_MODEL`: Whisper model size (options: `tiny`, `base`, `small`, `medium`, `large`).
+- `WHISPER_MODEL`: Whisper model size (options: `tiny`, `base`, `small`, `medium`, `large`, `distil-large-v3`).
 - `RATE_LIMIT`: API rate limit (default: `10/minute`).

@@ -160,7 +160,8 @@ def transcribe_with_whisper(
     Returns:
         The full Whisper result dictionary.
     """
-    if os.getenv("OPENAI_API_KEY") or os.getenv("USE_OPENAI_API") == "true":
+    use_openai = os.getenv("USE_OPENAI_API") == "true" or (os.getenv("VERCEL") and os.getenv("OPENAI_API_KEY"))
+    if use_openai:
         try:
             return transcribe_with_openai_api(file_path, language, task)
         except Exception as e:
@@ -170,7 +171,7 @@ def transcribe_with_whisper(
             logger.warning("OpenAI API failed, falling back to local faster-whisper", error=str(e))
 
     try:
-        model_name = os.getenv("WHISPER_MODEL", "base")
+        model_name = os.getenv("WHISPER_MODEL", "distil-large-v3")
         model = get_model(model_name)
         
         lang = None if language == "auto" else language
