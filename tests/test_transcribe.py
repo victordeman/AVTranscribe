@@ -1,79 +1,83 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import os
-from src.transcribe import transcribe_with_whisper, _MODELS
+import sys
+
+# Mock modules that are not available in the environment
+sys.modules["torch"] = MagicMock()
+sys.modules["transformers"] = MagicMock()
+
+from src.transcribe import transcribe_with_whisper, _PIPES, get_pipeline
 
 @pytest.fixture(autouse=True)
-def clear_models_cache():
-    _MODELS.clear()
+def clear_pipes_cache():
+    _PIPES.clear()
 
-@patch("whisper.load_model")
+@patch("src.transcribe.get_pipeline")
 @patch("torch.cuda.is_available", return_value=False)
-def test_transcribe_with_whisper_success(mock_cuda, mock_load_model):
-    # Setup mock model
-    mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "Hello world", "segments": []}
-    mock_load_model.return_value = mock_model
+def test_transcribe_with_whisper_hf_local_success(mock_cuda, mock_get_pipeline):
+    # Setup mock pipeline
+    mock_pipe = MagicMock()
+    mock_pipe.return_value = {"text": "Hello world from HF", "chunks": [{"start": 0, "end": 1, "text": "Hello"}]}
+    mock_get_pipeline.return_value = mock_pipe
     
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3", language="en")
     
     # Assertions
-    assert result["text"] == "Hello world"
-    mock_load_model.assert_called_once_with("base", device="cpu")
-    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language="en", task="transcribe")
+    assert result["text"] == "Hello world from HF"
+    assert len(result["segments"]) == 1
+    mock_get_pipeline.assert_called_once()
+    mock_pipe.assert_called_once_with("dummy_path.mp3", generate_kwargs={"task": "transcribe", "language": "en"}, return_timestamps=True)
 
-@patch("whisper.load_model")
-@patch("torch.cuda.is_available", return_value=False)
-def test_transcribe_with_whisper_auto_language(mock_cuda, mock_load_model):
-    # Setup mock model
-    mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "Detected language text", "segments": []}
-    mock_load_model.return_value = mock_model
+@patch("httpx.post")
+@patch("src.transcribe.open", create=True)
+@patch.dict(os.environ, {"HF_TOKEN": "test_token"})
+def test_transcribe_with_hf_api_success(mock_open, mock_post):
+    # Setup mock file
+    mock_file = MagicMock()
+    mock_file.read.return_value = b"fake data"
+    mock_open.return_value.__enter__.return_value = mock_file
+
+    # Setup mock response
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    # HF API returns 'chunks' when timestamps are requested
+    mock_response.json.return_value = {"text": "API Transcription", "chunks": [{"start": 0, "end": 2, "text": "API"}]}
+    mock_post.return_value = mock_response
     
     # Execute
     result = transcribe_with_whisper("dummy_path.mp3", language="auto")
     
     # Assertions
-    assert result["text"] == "Detected language text"
-    mock_model.transcribe.assert_called_once_with("dummy_path.mp3", language=None, task="transcribe")
+    assert result["text"] == "API Transcription"
+    assert len(result["segments"]) == 1
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert kwargs["params"]["return_timestamps"] == "true"
 
-@patch("whisper.load_model")
-@patch("torch.cuda.is_available", return_value=True)
-def test_transcribe_with_whisper_cuda(mock_cuda, mock_load_model):
-    # Setup mock model
-    mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "GPU power", "segments": []}
-    mock_load_model.return_value = mock_model
-    
-    # Execute
-    result = transcribe_with_whisper("dummy_path.mp3")
-    
-    # Assertions
-    assert result["text"] == "GPU power"
-    mock_load_model.assert_called_once_with("base", device="cuda")
+def test_get_pipeline_caching():
+    with patch("transformers.pipeline") as mock_pipeline, \
+         patch("transformers.AutoModelForSpeechSeq2Seq.from_pretrained") as mock_model, \
+         patch("transformers.AutoProcessor.from_pretrained") as mock_processor:
 
-@patch("whisper.load_model")
-def test_transcribe_with_whisper_model_caching(mock_load_model):
-    mock_model = MagicMock()
-    mock_model.transcribe.return_value = {"text": "cached", "segments": []}
-    mock_load_model.return_value = mock_model
-    
-    # Call twice
-    transcribe_with_whisper("path1.mp3")
-    transcribe_with_whisper("path2.mp3")
-    
-    # load_model should only be called once
-    mock_load_model.assert_called_once()
-    assert mock_model.transcribe.call_count == 2
+        mock_pipe = MagicMock()
+        mock_pipeline.return_value = mock_pipe
 
-@patch("whisper.load_model")
-def test_transcribe_with_whisper_error(mock_load_model):
-    mock_model = MagicMock()
-    mock_model.transcribe.side_effect = Exception("Whisper error")
-    mock_load_model.return_value = mock_model
+        # Call get_pipeline twice
+        get_pipeline("some-model")
+        get_pipeline("some-model")
+
+        # Internal transformers.pipeline should only be called once
+        mock_pipeline.assert_called_once()
+
+@patch("src.transcribe.get_pipeline")
+def test_transcribe_with_whisper_hf_error(mock_get_pipeline):
+    mock_pipe = MagicMock()
+    mock_pipe.side_effect = Exception("HF error")
+    mock_get_pipeline.return_value = mock_pipe
     
     with pytest.raises(Exception) as excinfo:
         transcribe_with_whisper("bad_file.mp3")
     
-    assert "Whisper error" in str(excinfo.value)
+    assert "HF error" in str(excinfo.value)

@@ -1,89 +1,121 @@
 import os
 import structlog
+import httpx
 from typing import Optional, Any, Dict
 
 logger = structlog.get_logger()
 
 # Global model cache
-_MODELS = {}
+_PIPES = {}
 
-def get_model(model_name: str):
-    """Retrieves or loads a Whisper model."""
-    import whisper
+def get_pipeline(model_id: str):
+    """Retrieves or loads a Hugging Face transcription pipeline."""
     import torch
-    if model_name not in _MODELS:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        logger.info("Loading Whisper model", model=model_name, device=device)
-        _MODELS[model_name] = whisper.load_model(model_name, device=device)
-    return _MODELS[model_name]
+    from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
-def transcribe_with_openai_api(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
+    if model_id not in _PIPES:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+        logger.info("Loading Distil-Whisper model", model=model_id, device=device)
+
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            model_id,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,
+            use_safetensors=True
+        )
+        model.to(device)
+
+        processor = AutoProcessor.from_pretrained(model_id)
+
+        _PIPES[model_id] = pipeline(
+            "automatic-speech-recognition",
+            model=model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            max_new_tokens=128,
+            chunk_length_s=30,
+            batch_size=16,
+            torch_dtype=torch_dtype,
+            device=device,
+        )
+    return _PIPES[model_id]
+
+def transcribe_with_hf_api(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
-    Transcribes a media file using the OpenAI Whisper API.
+    Transcribes a media file using the Hugging Face Inference API.
     """
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    hf_token = os.getenv("HF_TOKEN")
+    model_id = os.getenv("HF_MODEL_ID", "distil-whisper/distil-large-v3")
+    api_url = f"https://api-inference.huggingface.co/models/{model_id}"
 
-    logger.info("Starting OpenAI API Whisper task", file=file_path, language=language, task=task)
+    headers = {"Authorization": f"Bearer {hf_token}"}
 
-    with open(file_path, "rb") as audio_file:
-        lang = None if language == "auto" else language
+    logger.info("Starting Hugging Face API task", file=file_path, model=model_id)
 
-        if task == "translate":
-            response = client.audio.translations.create(
-                model="whisper-1",
-                file=audio_file,
-                response_format="verbose_json"
-            )
-        else:
-            response = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                language=lang,
-                response_format="verbose_json"
-            )
+    with open(file_path, "rb") as f:
+        data = f.read()
 
-    # Adapt the response to match the structure expected by the app
-    # Whisper API response in 'verbose_json' includes 'text' and 'segments'
-    return response.model_dump()
+    # HF Inference API for ASR
+    params = {
+        "wait_for_model": True,
+        "return_timestamps": "true" # Request timestamps for segments/chunks
+    }
+    if language != "auto":
+        params["language"] = language
+
+    response = httpx.post(api_url, headers=headers, content=data, params=params, timeout=300)
+
+    if response.status_code != 200:
+        logger.error("HF API request failed", status=response.status_code, error=response.text)
+        raise RuntimeError(f"HF API request failed: {response.text}")
+
+    result = response.json()
+    # Normalize response to match the expected structure {'text': ..., 'segments': ...}
+    # HF Inference API returns 'chunks' when timestamps are requested.
+    return {
+        "text": result.get("text", ""),
+        "segments": result.get("chunks", [])
+    }
 
 def transcribe_with_whisper(file_path: str, language: str = "auto", task: str = "transcribe") -> Dict[str, Any]:
     """
-    Transcribes a media file using either local Whisper or OpenAI API.
-    
-    Args:
-        file_path: Path to the media (audio or video) file.
-        language: Language code or "auto" for detection.
-        task: Whisper task type ("transcribe" or "translate").
-        
-    Returns:
-        The full Whisper result dictionary.
+    Transcribes a media file using either local Distil-Whisper or HF API.
     """
-    # Use OpenAI API if requested or if local whisper is not suitable (e.g., on Vercel)
-    if os.getenv("OPENAI_API_KEY") or os.getenv("USE_OPENAI_API") == "true":
+    # Use HF API if token is provided or specifically requested
+    if os.getenv("HF_TOKEN") or os.getenv("USE_HF_API") == "true":
         try:
-            return transcribe_with_openai_api(file_path, language, task)
+            return transcribe_with_hf_api(file_path, language, task)
         except Exception as e:
-            if os.getenv("USE_OPENAI_API") == "true":
-                logger.error("OpenAI API task failed", file=file_path, error=str(e))
+            if os.getenv("USE_HF_API") == "true":
+                logger.error("Hugging Face API task failed", file=file_path, error=str(e))
                 raise
-            logger.warning("OpenAI API failed, falling back to local whisper", error=str(e))
+            logger.warning("Hugging Face API failed, falling back to local model", error=str(e))
 
     try:
-        model_name = os.getenv("WHISPER_MODEL", "base")
-        model = get_model(model_name)
+        # Fallback to local Distil-Whisper
+        model_id = os.getenv("HF_MODEL_ID", "distil-whisper/distil-large-v3")
+        pipe = get_pipeline(model_id)
         
-        # Whisper handles both audio and video files directly using ffmpeg.
-        # It also handles auto-detection if language is None.
-        lang = None if language == "auto" else language
+        logger.info("Starting local Distil-Whisper task", file=file_path, language=language, task=task, model=model_id)
+
+        generate_kwargs = {"task": task}
+        if language != "auto":
+            generate_kwargs["language"] = language
+
+        # For long-form audio (>30s), chunking is handled by the pipeline settings in get_pipeline
+        result = pipe(file_path, generate_kwargs=generate_kwargs, return_timestamps=True)
         
-        logger.info("Starting local Whisper task", file=file_path, language=language, task=task, model=model_name)
-        result = model.transcribe(file_path, language=lang, task=task)
+        # Normalize result format
+        return {
+            "text": result.get("text", ""),
+            "segments": result.get("chunks", []) # transformers pipeline uses 'chunks' for timestamps
+        }
         
-        return result
     except ImportError:
-        logger.error("Local Whisper not available. Please set OPENAI_API_KEY.")
-        raise RuntimeError("Whisper dependencies not installed. Provide OPENAI_API_KEY for serverless mode.")
+        logger.error("Transformers/Torch not available. Please set HF_TOKEN or install requirements-local.txt.")
+        raise RuntimeError("Local dependencies not installed. Provide HF_TOKEN for serverless mode.")
     except Exception as e:
-        logger.error("Local Whisper task failed", file=file_path, task=task, error=str(e))
+        logger.error("Local Distil-Whisper task failed", file=file_path, error=str(e))
         raise
